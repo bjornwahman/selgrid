@@ -18,6 +18,32 @@ docker run --rm -p 8080:8080 -p 4444:4444 selgrid
 
 Öppna sedan `http://localhost:8080`.
 
+## Synology NAS (Docker Compose + GitHub token)
+
+Om du vill att NAS:en själv hämtar källkod från GitHub och startar Selgrid:
+
+1. Kopiera filerna `docker-compose.synology.yml` och `.env.synology.example` till din NAS.
+2. Byt namn på `.env.synology.example` till `.env` och fyll i värden.
+3. Kör:
+
+```bash
+docker compose --env-file .env -f docker-compose.synology.yml up -d --build
+```
+
+Detta använder `build.context` från GitHub:
+
+- `GITHUB_USERNAME`
+- `GITHUB_TOKEN` (PAT / fine-grained token med repo-read)
+- `GITHUB_REPOSITORY` (t.ex. `ditt-konto/selgrid`)
+- `GITHUB_REF` (t.ex. `main`)
+
+För uppdatering till ny commit:
+
+```bash
+docker compose --env-file .env -f docker-compose.synology.yml build --no-cache
+docker compose --env-file .env -f docker-compose.synology.yml up -d
+```
+
 ## Lokalt utan Docker
 
 ```bash
