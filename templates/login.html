@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Logga in</h2>
+<form method="post" class="col-md-6">
+  <div class="mb-3">
+    <label class="form-label">Användarnamn</label>
+    <input class="form-control" name="username" required>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Lösenord</label>
+    <input type="password" class="form-control" name="password" required>
+  </div>
+  <button class="btn btn-primary">Logga in</button>
+</form>
+{% endblock %}

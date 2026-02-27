@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Dashboard</h2>
+<div class="card mb-4">
+  <div class="card-body">
+    <h5>Ladda upp .side-test</h5>
+    <form method="post" enctype="multipart/form-data">
+      <div class="mb-3">
+        <label class="form-label">.side fil</label>
+        <input type="file" class="form-control" name="side_file" accept=".side" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Kör var (minuter)</label>
+        <input type="number" class="form-control" name="interval_minutes" value="5" min="1" required>
+      </div>
+      <button class="btn btn-success">Spara och schemalägg</button>
+    </form>
+  </div>
+</div>
+
+<h4>Mina test</h4>
+<table class="table table-striped">
+  <thead><tr><th>Namn</th><th>Intervall</th><th></th></tr></thead>
+  <tbody>
+    {% for test in tests %}
+      <tr>
+        <td>{{ test.name }}</td>
+        <td>{{ test.interval_minutes }} min</td>
+        <td><a href="{{ url_for('test_detail', test_case_id=test.id) }}" class="btn btn-sm btn-primary">Öppna</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="3">Inga tester uppladdade ännu.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

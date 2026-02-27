@@ -1,0 +1,25 @@
+name: selgrid
+
+services:
+  selgrid:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: selgrid:latest
+    container_name: selgrid
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "4444:4444"
+    environment:
+      TZ: ${TZ:-Europe/Stockholm}
+      APP_SECRET: ${APP_SECRET}
+      DATABASE_URL: sqlite:////opt/selgrid/data/selgrid.db
+      SELENIUM_REMOTE_URL: http://127.0.0.1:4444/wd/hub
+    volumes:
+      - selgrid_data:/opt/selgrid/data
+      - selgrid_uploads:/opt/selgrid/uploads
+
+volumes:
+  selgrid_data:
+  selgrid_uploads:
