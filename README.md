@@ -1,79 +1,64 @@
 # Selgrid
 
-Selgrid är en webbapp för att köra Selenium IDE (`.side`) tester mot Selenium Grid på samma server.
+Selgrid är en modern webbapp för att köra Selenium IDE (`.side`) tester mot Selenium Grid på samma server.
 
 ## Funktioner
 
-- Form-baserad autentisering
-- Uppladdning och parsing av `.side`
-- Manuell körning av uppladdade tester
-- Schemalagda körningar (minut-intervall)
-- Editera och ta bort sparade checkar
-- Testdetalj med stegmetrics och graf över svarstid/status över tid
-- Secrets per test som kan användas i steg via `${SECRET_KEY}`
-- Dark mode UI med orange kontrastfärg
+- Dark mode GUI med professionell dashboard
+- Uppladdning och körning av `.side`-checkar
+- Editera, pausa och ta bort checkar
+- Körhistorik med trendgraf över svarstid/status
+- Secrets per check via `${SECRET_KEY}`
+- Admin-sida för API bearer tokens (`/admin`)
+- Swagger/OpenAPI-dokumentation under `/docs`
 
-## Krav på servern
+## Inloggning
 
-- Python 3.10+
-- Java 17+
-- Chrome/Chromium installerad
-- Selenium Grid (standalone) installerad lokalt
+Självregistrering är avstängd.
 
-## Installera Selenium Grid lokalt på servern
+Standardkonto vid ny installation:
+- username: `admin`
+- password: `admin`
+
+Du kan ändra standardvärden med miljövariabler:
+- `DEFAULT_ADMIN_USERNAME`
+- `DEFAULT_ADMIN_PASSWORD`
+
+## Selenium Grid lokalt på servern
 
 ```bash
 scripts/install_local_grid.sh
-```
-
-Starta sedan Grid:
-
-```bash
 scripts/start_local_grid.sh
 ```
-
-Grid startar som standard på `http://127.0.0.1:4444`.
 
 ## Starta webbappen
 
 ```bash
-export SELENIUM_REMOTE_URL="http://127.0.0.1:4444/wd/hub"
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 python app.py
 ```
 
-Öppna sedan `http://localhost:8080`.
+## API (Bearer Auth)
+
+1. Logga in som admin och skapa token på `/admin`.
+2. Anropa API med header:
+
+```bash
+Authorization: Bearer <token>
+```
+
+Exempel:
+
+```bash
+curl -H "Authorization: Bearer <token>" http://127.0.0.1:8080/api/tests
+```
 
 ## Konfiguration
 
 - `SELENIUM_REMOTE_URL` (default: `http://127.0.0.1:4444/wd/hub`)
 - `APP_SECRET` (default: `dev-secret`)
-- `DATABASE_URL` (default: lokal SQLite-fil `selgrid.db`)
-- `GRID_PORT` (används av `scripts/start_local_grid.sh`, default: `4444`)
-- `SELENIUM_VERSION` (används av scripts, default: `4.27.0`)
-- `SELENIUM_DIR` (används av scripts, default: `./.selenium`)
-
-## Stödda Selenium IDE kommandon
-
-- `open`
-- `click`
-- `doubleClick`
-- `type`
-- `sendKeys`
-- `select` (`label=`, `value=`, `index=`)
-- `check` / `uncheck`
-- `mouseOver`
-- `submit`
-- `pause`
-- `assertTitle`
-- `assertText`
-- `assertValue`
-- `assertElementPresent`
-- `assertElementNotPresent`
-- `waitForElementPresent`
-- `waitForElementVisible` / `waitForElement`
-- `waitForElementNotPresent` / `waitForElementNotVisible`
-- `setWindowSize`
-
-Selektorer stöder `css=`, `xpath=`, `id=`, `name=`, `linkText=`, `partialLinkText=`, `class=` och `tag=`. Utan prefix tolkas target som CSS selector.
-
-Övriga kommandon loggas som fel per steg.
+- `DATABASE_URL` (default: `sqlite:///selgrid.db`)
+- `DEFAULT_ADMIN_USERNAME` (default: `admin`)
+- `DEFAULT_ADMIN_PASSWORD` (default: `admin`)

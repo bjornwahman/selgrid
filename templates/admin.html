@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Admin · API tokens</h2>
+<p class="muted">Skapa bearer tokens för integrationer mot API:et.</p>
+
+{% if created_token %}
+  <div class="alert alert-warning">
+    <strong>Ny token:</strong> <code>{{ created_token }}</code><br>
+    Kopiera nu – token visas bara en gång.
+  </div>
+{% endif %}
+
+<div class="card mb-4">
+  <div class="card-body">
+    <form method="post" class="row g-3">
+      <div class="col-md-9">
+        <label class="form-label">Token-namn</label>
+        <input class="form-control" name="name" placeholder="Ex: Grafana integration" required>
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <button class="btn btn-warning w-100">Skapa token</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h5>Aktiva tokens</h5>
+    <table class="table table-striped align-middle mb-0">
+      <thead><tr><th>Namn</th><th>Prefix</th><th>Skapad</th><th>Senast använd</th><th></th></tr></thead>
+      <tbody>
+      {% for token in tokens %}
+        <tr>
+          <td>{{ token.name }}</td>
+          <td><code>{{ token.token_prefix }}…</code></td>
+          <td>{{ token.created_at }}</td>
+          <td>{{ token.last_used_at or '-' }}</td>
+          <td class="text-end">
+            <form method="post" action="{{ url_for('delete_api_token', token_id=token.id) }}" onsubmit="return confirm('Radera token?');">
+              <button class="btn btn-sm btn-outline-danger">Radera</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="muted">Inga tokens ännu.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
