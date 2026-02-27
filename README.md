@@ -1,6 +1,6 @@
 # Selgrid
 
-Selgrid är en webbapp för att köra Selenium IDE (`.side`) tester mot en Selenium Grid endpoint.
+Selgrid är en webbapp för att köra Selenium IDE (`.side`) tester mot Selenium Grid på samma server.
 
 ## Funktioner
 
@@ -11,32 +11,44 @@ Selgrid är en webbapp för att köra Selenium IDE (`.side`) tester mot en Selen
 - Testdetalj-sidor med metrics per körning och steg
 - Secrets per test som kan användas i steg via `${SECRET_KEY}`
 
-## Kom igång lokalt
+## Krav på servern
 
-1. Starta Selenium Grid (exempel: standalone Chrome) så att den är nåbar, t.ex. på `http://127.0.0.1:4444/wd/hub`.
-2. Starta webbappen:
+- Python 3.10+
+- Java 17+
+- Chrome/Chromium installerad
+- Selenium Grid (standalone) installerad lokalt
+
+## Installera Selenium Grid lokalt på servern
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python app.py
+scripts/install_local_grid.sh
 ```
 
-Öppna sedan `http://localhost:8080`.
+Starta sedan Grid:
 
-### Konfiguration
+```bash
+scripts/start_local_grid.sh
+```
 
-- `SELENIUM_REMOTE_URL` (default: `http://127.0.0.1:4444/wd/hub`)
-- `APP_SECRET` (default: `dev-secret`)
-- `DATABASE_URL` (default: lokal SQLite-fil `selgrid.db`)
+Grid startar som standard på `http://127.0.0.1:4444`.
 
-Exempel:
+## Starta webbappen
 
 ```bash
 export SELENIUM_REMOTE_URL="http://127.0.0.1:4444/wd/hub"
 python app.py
 ```
+
+Öppna sedan `http://localhost:8080`.
+
+## Konfiguration
+
+- `SELENIUM_REMOTE_URL` (default: `http://127.0.0.1:4444/wd/hub`)
+- `APP_SECRET` (default: `dev-secret`)
+- `DATABASE_URL` (default: lokal SQLite-fil `selgrid.db`)
+- `GRID_PORT` (används av `scripts/start_local_grid.sh`, default: `4444`)
+- `SELENIUM_VERSION` (används av scripts, default: `4.27.0`)
+- `SELENIUM_DIR` (används av scripts, default: `./.selenium`)
 
 ## Stödda Selenium IDE kommandon
 
