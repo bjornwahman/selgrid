@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Redigera test</h2>
+<div class="card mb-4">
+  <div class="card-body">
+    <form method="post" class="row g-3">
+      <div class="col-md-8">
+        <label class="form-label">Namn</label>
+        <input class="form-control" name="name" value="{{ test_case.name }}" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Intervall (min)</label>
+        <input type="number" min="1" class="form-control" name="interval_minutes" value="{{ test_case.interval_minutes }}" required>
+      </div>
+      <div class="col-12">
+        <label class="form-label">Test i .side-fil</label>
+        <select class="form-select" name="selenium_test_id">
+          {% for test in selenium_tests %}
+            <option value="{{ test.id }}" {% if test.id == test_case.selenium_test_id %}selected{% endif %}>{{ test.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 form-check ms-2">
+        <input class="form-check-input" type="checkbox" name="active" id="active" {% if test_case.active %}checked{% endif %}>
+        <label class="form-check-label" for="active">Aktiv schemaläggning</label>
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-warning">Spara ändringar</button>
+        <a href="{{ url_for('test_detail', test_case_id=test_case.id) }}" class="btn btn-outline-secondary">Avbryt</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

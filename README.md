@@ -8,8 +8,10 @@ Selgrid är en webbapp för att köra Selenium IDE (`.side`) tester mot Selenium
 - Uppladdning och parsing av `.side`
 - Manuell körning av uppladdade tester
 - Schemalagda körningar (minut-intervall)
-- Testdetalj-sidor med metrics per körning och steg
+- Editera och ta bort sparade checkar
+- Testdetalj med stegmetrics och graf över svarstid/status över tid
 - Secrets per test som kan användas i steg via `${SECRET_KEY}`
+- Dark mode UI med orange kontrastfärg
 
 ## Krav på servern
 
@@ -66,7 +68,10 @@ python app.py
 - `assertText`
 - `assertValue`
 - `assertElementPresent`
+- `assertElementNotPresent`
 - `waitForElementPresent`
+- `waitForElementVisible` / `waitForElement`
+- `waitForElementNotPresent` / `waitForElementNotVisible`
 - `setWindowSize`
 
 Selektorer stöder `css=`, `xpath=`, `id=`, `name=`, `linkText=`, `partialLinkText=`, `class=` och `tag=`. Utan prefix tolkas target som CSS selector.
