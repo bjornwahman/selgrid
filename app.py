@@ -24,8 +24,13 @@ from flask_login import (
 )
 from flask_sqlalchemy import SQLAlchemy
 from selenium import webdriver
+from selenium.webdriver import ActionChains
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.select import Select
+from selenium.webdriver.support.ui import WebDriverWait
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
@@ -124,18 +129,123 @@ def replace_secret(value: str, secrets: dict):
     return value
 
 
+def resolve_locator(target: str):
+    if not target:
+        raise ValueError("Missing target for locator-based command")
+
+    if target.startswith("xpath="):
+        return By.XPATH, target[len("xpath=") :]
+    if target.startswith("css="):
+        return By.CSS_SELECTOR, target[len("css=") :]
+    if target.startswith("id="):
+        return By.ID, target[len("id=") :]
+    if target.startswith("name="):
+        return By.NAME, target[len("name=") :]
+    if target.startswith("linkText="):
+        return By.LINK_TEXT, target[len("linkText=") :]
+    if target.startswith("partialLinkText="):
+        return By.PARTIAL_LINK_TEXT, target[len("partialLinkText=") :]
+    if target.startswith("class="):
+        return By.CLASS_NAME, target[len("class=") :]
+    if target.startswith("tag="):
+        return By.TAG_NAME, target[len("tag=") :]
+
+    return By.CSS_SELECTOR, target
+
+
+def resolve_key_token(key_name: str):
+    mapping = {
+        "ENTER": Keys.ENTER,
+        "TAB": Keys.TAB,
+        "ESCAPE": Keys.ESCAPE,
+        "SPACE": Keys.SPACE,
+        "BACKSPACE": Keys.BACKSPACE,
+        "DELETE": Keys.DELETE,
+        "ARROW_UP": Keys.ARROW_UP,
+        "ARROW_DOWN": Keys.ARROW_DOWN,
+        "ARROW_LEFT": Keys.ARROW_LEFT,
+        "ARROW_RIGHT": Keys.ARROW_RIGHT,
+    }
+    return mapping.get(key_name.upper(), key_name)
+
+
 def perform_command(driver, command, target, value):
     if command == "open":
         driver.get(target)
     elif command == "click":
-        driver.find_element(By.CSS_SELECTOR, target).click()
+        by, selector = resolve_locator(target)
+        driver.find_element(by, selector).click()
+    elif command == "doubleClick":
+        by, selector = resolve_locator(target)
+        elem = driver.find_element(by, selector)
+        ActionChains(driver).double_click(elem).perform()
     elif command == "type":
-        elem = driver.find_element(By.CSS_SELECTOR, target)
+        by, selector = resolve_locator(target)
+        elem = driver.find_element(by, selector)
         elem.clear()
         elem.send_keys(value)
+    elif command == "sendKeys":
+        by, selector = resolve_locator(target)
+        elem = driver.find_element(by, selector)
+        token = resolve_key_token(value)
+        elem.send_keys(token)
+    elif command == "select":
+        by, selector = resolve_locator(target)
+        elem = driver.find_element(by, selector)
+        dropdown = Select(elem)
+        if value.startswith("label="):
+            dropdown.select_by_visible_text(value[len("label=") :])
+        elif value.startswith("value="):
+            dropdown.select_by_value(value[len("value=") :])
+        elif value.startswith("index="):
+            dropdown.select_by_index(int(value[len("index=") :]))
+        else:
+            dropdown.select_by_visible_text(value)
+    elif command == "check":
+        by, selector = resolve_locator(target)
+        elem = driver.find_element(by, selector)
+        if not elem.is_selected():
+            elem.click()
+    elif command == "uncheck":
+        by, selector = resolve_locator(target)
+        elem = driver.find_element(by, selector)
+        if elem.is_selected():
+            elem.click()
+    elif command == "mouseOver":
+        by, selector = resolve_locator(target)
+        elem = driver.find_element(by, selector)
+        ActionChains(driver).move_to_element(elem).perform()
+    elif command == "submit":
+        by, selector = resolve_locator(target)
+        elem = driver.find_element(by, selector)
+        elem.submit()
+    elif command == "pause":
+        delay_ms = int(target or value or "0")
+        time.sleep(max(delay_ms, 0) / 1000)
     elif command == "assertTitle":
         if driver.title != value:
             raise AssertionError(f"Expected title '{value}', got '{driver.title}'")
+    elif command == "assertText":
+        by, selector = resolve_locator(target)
+        actual = driver.find_element(by, selector).text
+        if actual != value:
+            raise AssertionError(f"Expected text '{value}', got '{actual}'")
+    elif command == "assertValue":
+        by, selector = resolve_locator(target)
+        actual = driver.find_element(by, selector).get_attribute("value")
+        if actual != value:
+            raise AssertionError(f"Expected value '{value}', got '{actual}'")
+    elif command == "assertElementPresent":
+        by, selector = resolve_locator(target)
+        if not driver.find_elements(by, selector):
+            raise AssertionError(f"Element not found: {target}")
+    elif command == "waitForElementPresent":
+        by, selector = resolve_locator(target)
+        timeout_s = int(value) if value else 10
+        WebDriverWait(driver, timeout_s).until(EC.presence_of_element_located((by, selector)))
+    elif command == "setWindowSize":
+        width, height = (value or target).split("x")
+        driver.set_window_size(int(width), int(height))
     else:
         raise NotImplementedError(f"Command '{command}' is not supported yet")
 

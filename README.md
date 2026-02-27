@@ -32,8 +32,22 @@ python app.py
 ## Stödda Selenium IDE kommandon
 
 - `open`
-- `click` (CSS selector)
-- `type` (CSS selector)
+- `click`
+- `doubleClick`
+- `type`
+- `sendKeys`
+- `select` (`label=`, `value=`, `index=`)
+- `check` / `uncheck`
+- `mouseOver`
+- `submit`
+- `pause`
 - `assertTitle`
+- `assertText`
+- `assertValue`
+- `assertElementPresent`
+- `waitForElementPresent`
+- `setWindowSize`
 
-Övriga kommandon loggas som fel per steg.
+Selektorer stöder `css=`, `xpath=`, `id=`, `name=`, `linkText=`, `partialLinkText=`, `class=` och `tag=`. Utan prefix tolkas target som CSS selector.
+
+Övriga kommandon loggas fortfarande som fel per steg.
