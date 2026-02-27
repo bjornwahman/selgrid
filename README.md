@@ -30,12 +30,14 @@ Om du vill att NAS:en själv hämtar källkod från GitHub och startar Selgrid:
 docker compose --env-file .env -f docker-compose.synology.yml up -d --build
 ```
 
-Detta använder `build.context` från GitHub:
+Detta använder `build.context` från GitHub **tarball (codeload)** i stället för `repo.git`, vilket undviker felet `unable to find 'git'` som ofta uppstår i Synology-miljöer:
 
 - `GITHUB_USERNAME`
 - `GITHUB_TOKEN` (PAT / fine-grained token med repo-read)
 - `GITHUB_REPOSITORY` (t.ex. `ditt-konto/selgrid`)
-- `GITHUB_REF` (t.ex. `main`)
+- `GITHUB_REF` (branch-namn, t.ex. `main`)
+
+> Tips: använd en token med minst `repo:read` / motsvarande fine-grained read access till repot.
 
 För uppdatering till ny commit:
 

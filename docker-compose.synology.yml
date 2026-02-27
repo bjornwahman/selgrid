@@ -3,7 +3,9 @@ name: selgrid
 services:
   selgrid:
     build:
-      context: "https://${GITHUB_USERNAME}:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git#${GITHUB_REF}"
+      # Synology-miljöer saknar ofta `git` i build-motorn.
+      # Därför används GitHubs tarball-endpoint (codeload) i stället för .git-context.
+      context: "https://${GITHUB_USERNAME}:${GITHUB_TOKEN}@codeload.github.com/${GITHUB_REPOSITORY}/tar.gz/refs/heads/${GITHUB_REF}"
       dockerfile: Dockerfile
     image: selgrid:latest
     container_name: selgrid
