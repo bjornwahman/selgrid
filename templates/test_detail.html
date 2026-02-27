@@ -2,9 +2,20 @@
 {% block content %}
 <h2>{{ test_case.name }}</h2>
 <p><strong>Intervall:</strong> {{ test_case.interval_minutes }} minuter</p>
-<form method="post" action="{{ url_for('run_now', test_case_id=test_case.id) }}" class="mb-4">
-  <button class="btn btn-warning">Kör test nu</button>
-</form>
+<div class="d-flex gap-2 mb-4">
+  <form method="post" action="{{ url_for('run_now', test_case_id=test_case.id) }}">
+    <button class="btn btn-warning">Kör test nu</button>
+  </form>
+  <a href="{{ url_for('edit_test', test_case_id=test_case.id) }}" class="btn btn-outline-warning">Editera check</a>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5>Trend över tid</h5>
+    <p class="text-muted mb-2">Svarstid per körning, med statusmarkerad punktfärg.</p>
+    <canvas id="runChart" height="100"></canvas>
+  </div>
+</div>
 
 <div class="card mb-4">
   <div class="card-body">
@@ -12,7 +23,7 @@
     <form method="post" action="{{ url_for('add_secret', test_case_id=test_case.id) }}" class="row g-2">
       <div class="col-md-4"><input class="form-control" name="key" placeholder="KEY" required></div>
       <div class="col-md-6"><input class="form-control" name="value" placeholder="VALUE" required></div>
-      <div class="col-md-2"><button class="btn btn-success w-100">Spara</button></div>
+      <div class="col-md-2"><button class="btn btn-warning w-100">Spara</button></div>
     </form>
     <ul class="mt-3">
       {% for secret in secrets %}
@@ -54,4 +65,37 @@
 {% else %}
   <p>Ingen körhistorik ännu.</p>
 {% endfor %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+  const labels = {{ chart_labels | tojson }};
+  const durations = {{ chart_durations | tojson }};
+  const statuses = {{ chart_statuses | tojson }};
+  const colors = statuses.map((status) => status === 'success' ? '#ff8a00' : '#ef4444');
+
+  const ctx = document.getElementById('runChart');
+  if (ctx && labels.length) {
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Svarstid (ms)',
+          data: durations,
+          borderColor: '#ff8a00',
+          backgroundColor: 'rgba(255, 138, 0, 0.25)',
+          pointBackgroundColor: colors,
+          tension: 0.2,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: { beginAtZero: true }
+        }
+      }
+    });
+  }
+</script>
 {% endblock %}
