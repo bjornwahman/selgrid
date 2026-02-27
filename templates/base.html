@@ -1,17 +1,45 @@
 <!doctype html>
-<html lang="sv">
+<html lang="sv" data-bs-theme="dark">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Selgrid</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+      :root {
+        --bg-main: #0f1115;
+        --bg-surface: #181c24;
+        --bg-elevated: #212735;
+        --txt-main: #edf1f7;
+        --txt-muted: #9ba7ba;
+        --accent: #ff8a00;
+        --accent-soft: rgba(255, 138, 0, 0.18);
+        --line: #2a3242;
+      }
+      body { background: radial-gradient(circle at 20% -20%, #1a2130 0%, var(--bg-main) 40%); color: var(--txt-main); }
+      .navbar { backdrop-filter: blur(8px); background: rgba(15,17,21,.82) !important; border-bottom: 1px solid var(--line); }
+      .card { background: linear-gradient(180deg, var(--bg-elevated), var(--bg-surface)); border: 1px solid var(--line); border-radius: 14px; }
+      .table { --bs-table-bg: transparent; --bs-table-striped-bg: rgba(255,255,255,.02); --bs-table-color: var(--txt-main); }
+      .form-control, .form-select { background-color: #121723; border-color: #2c3548; color: var(--txt-main); }
+      .form-control:focus, .form-select:focus { border-color: var(--accent); box-shadow: 0 0 0 .2rem var(--accent-soft); }
+      .btn-warning { background-color: var(--accent); border-color: var(--accent); color: #111; font-weight: 600; }
+      .btn-outline-warning { border-color: var(--accent); color: var(--accent); }
+      .btn-outline-warning:hover { background: var(--accent); color: #111; }
+      .muted { color: var(--txt-muted); }
+      .pill { background: var(--accent-soft); color: #ffbe77; border: 1px solid rgba(255,138,0,.3); border-radius: 999px; padding: .2rem .6rem; font-size: .8rem; }
+      .hero { padding: 3rem; border: 1px solid var(--line); border-radius: 20px; background: linear-gradient(150deg, rgba(255,138,0,.16), rgba(24,28,36,.95)); }
+    </style>
   </head>
   <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <nav class="navbar navbar-expand-lg mb-4">
       <div class="container">
-        <a class="navbar-brand" href="{{ url_for('index') }}">Selgrid</a>
-        <div>
+        <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">Selgrid</a>
+        <div class="d-flex gap-2 align-items-center">
+          <a class="btn btn-outline-light btn-sm" href="{{ url_for('docs_page') }}">API docs</a>
           {% if current_user.is_authenticated %}
+            {% if current_user.username == 'admin' %}
+              <a class="btn btn-outline-warning btn-sm" href="{{ url_for('admin_page') }}">Admin</a>
+            {% endif %}
             <a class="btn btn-outline-light btn-sm" href="{{ url_for('dashboard') }}">Dashboard</a>
             <a class="btn btn-outline-warning btn-sm" href="{{ url_for('logout') }}">Logga ut</a>
           {% else %}
@@ -21,7 +49,7 @@
       </div>
     </nav>
 
-    <main class="container">
+    <main class="container pb-5">
       {% with messages = get_flashed_messages() %}
         {% if messages %}
           {% for message in messages %}

@@ -1,57 +1,37 @@
 # Selgrid
 
-Selgrid är en webbapp för att köra Selenium IDE (`.side`) tester mot Selenium Grid med:
+Selgrid är en modern webbapp för att köra Selenium IDE (`.side`) tester mot Selenium Grid på samma server.
 
-- Form-baserad autentisering
-- Uppladdning och parsing av `.side`
-- Schemalagda körningar (minut-intervall)
-- Testdetalj-sidor med metrics per körning och steg
-- Secrets per test som kan användas i steg via `${SECRET_KEY}`
-- En enda Docker image som kör både Selenium Grid (standalone chrome) och webbappen
+## Funktioner
 
-## Start med Docker
+- Dark mode GUI med professionell dashboard
+- Uppladdning och körning av `.side`-checkar
+- Editera, pausa och ta bort checkar
+- Körhistorik med trendgraf över svarstid/status
+- Secrets per check via `${SECRET_KEY}`
+- Admin-sida för API bearer tokens (`/admin`)
+- Swagger/OpenAPI-dokumentation under `/docs`
 
-```bash
-docker build -t selgrid .
-docker run --rm -p 8080:8080 -p 4444:4444 selgrid
-```
+## Inloggning
 
-Öppna sedan `http://localhost:8080`.
+Självregistrering är avstängd.
 
-## Synology NAS (starta container först, ladda ner repo inuti containern)
+Standardkonto vid ny installation:
+- username: `admin`
+- password: `admin`
 
-För Synology där build-motorn strular med Git kan du köra utan `docker build`.
-Containern startar från `selenium/standalone-chrome` och scriptet `synology-start.sh`
-installerar beroenden, klonar repo och startar Selgrid.
+Du kan ändra standardvärden med miljövariabler:
+- `DEFAULT_ADMIN_USERNAME`
+- `DEFAULT_ADMIN_PASSWORD`
 
-1. Skapa mapp på NAS, t.ex. `/volume1/docker/selgrid`.
-2. Kopiera dit dessa filer från repot:
-   - `docker-compose.synology.yml`
-   - `.env.synology.example` (byt namn till `.env`)
-   - `synology-start.sh`
-3. Uppdatera värden i `.env`.
-4. Starta:
+## Selenium Grid lokalt på servern
 
 ```bash
-docker compose --env-file .env -f docker-compose.synology.yml up -d
+scripts/install_local_grid.sh
+scripts/start_local_grid.sh
 ```
 
-Scriptet i containern gör detta vid start:
-- installerar `git`, `python3`, `pip`, `supervisor`
-- klonar `https://github.com/<owner>/<repo>.git` (eller med token för privat repo)
-- checkout av `GITHUB_REF`
-- `pip install -r requirements.txt`
-- startar `supervisord` (Selenium + Selgrid webbapp)
-
-Uppdatering till ny version:
-
-```bash
-docker compose --env-file .env -f docker-compose.synology.yml restart selgrid
-```
-
-Byt `GITHUB_REF` i `.env` om du vill pinna annan branch/tag.
-
-## Lokalt utan Docker
+## Starta webbappen
 
 ```bash
 python3 -m venv .venv
@@ -60,27 +40,25 @@ pip install -r requirements.txt
 python app.py
 ```
 
-> Obs: appen behöver Selenium Grid endpoint, default är `http://127.0.0.1:4444/wd/hub`.
+## API (Bearer Auth)
 
-## Stödda Selenium IDE kommandon
+1. Logga in som admin och skapa token på `/admin`.
+2. Anropa API med header:
 
-- `open`
-- `click`
-- `doubleClick`
-- `type`
-- `sendKeys`
-- `select` (`label=`, `value=`, `index=`)
-- `check` / `uncheck`
-- `mouseOver`
-- `submit`
-- `pause`
-- `assertTitle`
-- `assertText`
-- `assertValue`
-- `assertElementPresent`
-- `waitForElementPresent`
-- `setWindowSize`
+```bash
+Authorization: Bearer <token>
+```
 
-Selektorer stöder `css=`, `xpath=`, `id=`, `name=`, `linkText=`, `partialLinkText=`, `class=` och `tag=`. Utan prefix tolkas target som CSS selector.
+Exempel:
 
-Övriga kommandon loggas fortfarande som fel per steg.
+```bash
+curl -H "Authorization: Bearer <token>" http://127.0.0.1:8080/api/tests
+```
+
+## Konfiguration
+
+- `SELENIUM_REMOTE_URL` (default: `http://127.0.0.1:4444/wd/hub`)
+- `APP_SECRET` (default: `dev-secret`)
+- `DATABASE_URL` (default: `sqlite:///selgrid.db`)
+- `DEFAULT_ADMIN_USERNAME` (default: `admin`)
+- `DEFAULT_ADMIN_PASSWORD` (default: `admin`)

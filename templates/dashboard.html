@@ -1,36 +1,50 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Dashboard</h2>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Dashboard</h2>
+  <span class="pill">Inloggad som {{ current_user.username }}</span>
+</div>
 <div class="card mb-4">
   <div class="card-body">
-    <h5>Ladda upp .side-test</h5>
-    <form method="post" enctype="multipart/form-data">
-      <div class="mb-3">
+    <h5>Ladda upp ny check (.side)</h5>
+    <form method="post" enctype="multipart/form-data" class="row g-3">
+      <div class="col-md-8">
         <label class="form-label">.side fil</label>
         <input type="file" class="form-control" name="side_file" accept=".side" required>
       </div>
-      <div class="mb-3">
-        <label class="form-label">Kör var (minuter)</label>
+      <div class="col-md-4">
+        <label class="form-label">Intervall (minuter)</label>
         <input type="number" class="form-control" name="interval_minutes" value="5" min="1" required>
       </div>
-      <button class="btn btn-success">Spara och schemalägg</button>
+      <div class="col-12"><button class="btn btn-warning">Spara check</button></div>
     </form>
   </div>
 </div>
 
-<h4>Mina test</h4>
-<table class="table table-striped">
-  <thead><tr><th>Namn</th><th>Intervall</th><th></th></tr></thead>
-  <tbody>
-    {% for test in tests %}
-      <tr>
-        <td>{{ test.name }}</td>
-        <td>{{ test.interval_minutes }} min</td>
-        <td><a href="{{ url_for('test_detail', test_case_id=test.id) }}" class="btn btn-sm btn-primary">Öppna</a></td>
-      </tr>
-    {% else %}
-      <tr><td colspan="3">Inga tester uppladdade ännu.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+<div class="card">
+  <div class="card-body">
+    <h5>Mina checkar</h5>
+    <table class="table table-striped align-middle mb-0">
+      <thead><tr><th>Namn</th><th>Intervall</th><th>Status</th><th class="text-end">Åtgärder</th></tr></thead>
+      <tbody>
+        {% for test in tests %}
+          <tr>
+            <td>{{ test.name }}</td>
+            <td>{{ test.interval_minutes }} min</td>
+            <td>{% if test.active %}<span class="badge text-bg-success">Aktiv</span>{% else %}<span class="badge text-bg-secondary">Pausad</span>{% endif %}</td>
+            <td class="text-end">
+              <a href="{{ url_for('test_detail', test_case_id=test.id) }}" class="btn btn-sm btn-primary">Öppna</a>
+              <a href="{{ url_for('edit_test', test_case_id=test.id) }}" class="btn btn-sm btn-outline-warning">Editera</a>
+              <form method="post" action="{{ url_for('delete_test', test_case_id=test.id) }}" class="d-inline" onsubmit="return confirm('Ta bort checken?');">
+                <button class="btn btn-sm btn-outline-danger">Ta bort</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4" class="muted">Inga checkar uppladdade ännu.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 {% endblock %}
