@@ -18,33 +18,38 @@ docker run --rm -p 8080:8080 -p 4444:4444 selgrid
 
 Öppna sedan `http://localhost:8080`.
 
-## Synology NAS (Docker Compose + GitHub token)
+## Synology NAS (starta container först, ladda ner repo inuti containern)
 
-Om du vill att NAS:en själv hämtar källkod från GitHub och startar Selgrid:
+För Synology där build-motorn strular med Git kan du köra utan `docker build`.
+Containern startar från `selenium/standalone-chrome` och scriptet `synology-start.sh`
+installerar beroenden, klonar repo och startar Selgrid.
 
-1. Kopiera filerna `docker-compose.synology.yml` och `.env.synology.example` till din NAS.
-2. Byt namn på `.env.synology.example` till `.env` och fyll i värden.
-3. Kör:
-
-```bash
-docker compose --env-file .env -f docker-compose.synology.yml up -d --build
-```
-
-Detta använder `build.context` från GitHub **tarball (codeload)** i stället för `repo.git`, vilket undviker felet `unable to find 'git'` som ofta uppstår i Synology-miljöer:
-
-- `GITHUB_USERNAME`
-- `GITHUB_TOKEN` (PAT / fine-grained token med repo-read)
-- `GITHUB_REPOSITORY` (t.ex. `ditt-konto/selgrid`)
-- `GITHUB_REF` (branch-namn, t.ex. `main`)
-
-> Tips: använd en token med minst `repo:read` / motsvarande fine-grained read access till repot.
-
-För uppdatering till ny commit:
+1. Skapa mapp på NAS, t.ex. `/volume1/docker/selgrid`.
+2. Kopiera dit dessa filer från repot:
+   - `docker-compose.synology.yml`
+   - `.env.synology.example` (byt namn till `.env`)
+   - `synology-start.sh`
+3. Uppdatera värden i `.env`.
+4. Starta:
 
 ```bash
-docker compose --env-file .env -f docker-compose.synology.yml build --no-cache
 docker compose --env-file .env -f docker-compose.synology.yml up -d
 ```
+
+Scriptet i containern gör detta vid start:
+- installerar `git`, `python3`, `pip`, `supervisor`
+- klonar `https://github.com/<owner>/<repo>.git` (eller med token för privat repo)
+- checkout av `GITHUB_REF`
+- `pip install -r requirements.txt`
+- startar `supervisord` (Selenium + Selgrid webbapp)
+
+Uppdatering till ny version:
+
+```bash
+docker compose --env-file .env -f docker-compose.synology.yml restart selgrid
+```
+
+Byt `GITHUB_REF` i `.env` om du vill pinna annan branch/tag.
 
 ## Lokalt utan Docker
 
