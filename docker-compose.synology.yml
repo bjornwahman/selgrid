@@ -1,0 +1,26 @@
+name: selgrid
+
+services:
+  selgrid:
+    build:
+      # Synology-miljöer saknar ofta `git` i build-motorn.
+      # Därför används GitHubs tarball-endpoint (codeload) i stället för .git-context.
+      context: "https://${GITHUB_USERNAME}:${GITHUB_TOKEN}@codeload.github.com/${GITHUB_REPOSITORY}/tar.gz/refs/heads/${GITHUB_REF}"
+      dockerfile: Dockerfile
+    image: selgrid:latest
+    container_name: selgrid
+    ports:
+      - "8080:8080"
+      - "4444:4444"
+    environment:
+      APP_SECRET: ${APP_SECRET}
+      DATABASE_URL: sqlite:////opt/selgrid/data/selgrid.db
+      SELENIUM_REMOTE_URL: http://127.0.0.1:4444/wd/hub
+    volumes:
+      - selgrid_data:/opt/selgrid/data
+      - selgrid_uploads:/opt/selgrid/uploads
+    restart: unless-stopped
+
+volumes:
+  selgrid_data:
+  selgrid_uploads:
