@@ -37,9 +37,7 @@ Grid startar som standard på `http://127.0.0.1:4444`.
 ## Starta webbappen
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+export SELENIUM_REMOTE_URL="http://127.0.0.1:4444/wd/hub"
 python app.py
 ```
 
