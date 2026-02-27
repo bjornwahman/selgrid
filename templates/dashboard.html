@@ -3,33 +3,53 @@
 <h2>Dashboard</h2>
 <div class="card mb-4">
   <div class="card-body">
-    <h5>Ladda upp .side-test</h5>
+    <h5>Lägg till .side-check</h5>
     <form method="post" enctype="multipart/form-data">
       <div class="mb-3">
         <label class="form-label">.side fil</label>
-        <input type="file" class="form-control" name="side_file" accept=".side" required>
+        <input type="file" class="form-control" name="side_file" accept=".side">
+        <div class="form-text text-muted">Valfritt om du istället klistrar in rå JSON nedan.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Eller klistra in rå .side JSON</label>
+        <textarea class="form-control" name="side_raw" rows="6" placeholder='{"tests": [...], "urls": [...]}'></textarea>
       </div>
       <div class="mb-3">
         <label class="form-label">Kör var (minuter)</label>
         <input type="number" class="form-control" name="interval_minutes" value="5" min="1" required>
       </div>
-      <button class="btn btn-success">Spara och schemalägg</button>
+      <button class="btn btn-warning">Spara och schemalägg</button>
     </form>
   </div>
 </div>
 
-<h4>Mina test</h4>
-<table class="table table-striped">
-  <thead><tr><th>Namn</th><th>Intervall</th><th></th></tr></thead>
+<h4>Mina checkar</h4>
+<table class="table table-striped align-middle">
+  <thead><tr><th>Namn</th><th>Intervall</th><th>Status</th><th>Varningar</th><th>Åtgärder</th></tr></thead>
   <tbody>
-    {% for test in tests %}
+    {% for row in test_rows %}
+      {% set test = row.test %}
       <tr>
         <td>{{ test.name }}</td>
         <td>{{ test.interval_minutes }} min</td>
-        <td><a href="{{ url_for('test_detail', test_case_id=test.id) }}" class="btn btn-sm btn-primary">Öppna</a></td>
+        <td>{% if test.active %}<span class="badge text-bg-success">Aktiv</span>{% else %}<span class="badge text-bg-secondary">Pausad</span>{% endif %}</td>
+        <td>
+          {% if row.unsupported %}
+            <span class="badge text-bg-warning text-dark">{{ row.unsupported|length }} saknas</span>
+          {% else %}
+            <span class="text-muted">Inga</span>
+          {% endif %}
+        </td>
+        <td class="d-flex gap-2">
+          <a href="{{ url_for('test_detail', test_case_id=test.id) }}" class="btn btn-sm btn-primary">Öppna</a>
+          <a href="{{ url_for('edit_test', test_case_id=test.id) }}" class="btn btn-sm btn-outline-warning">Editera</a>
+          <form method="post" action="{{ url_for('delete_test', test_case_id=test.id) }}" onsubmit="return confirm('Ta bort checken?');">
+            <button class="btn btn-sm btn-outline-danger">Ta bort</button>
+          </form>
+        </td>
       </tr>
     {% else %}
-      <tr><td colspan="3">Inga tester uppladdade ännu.</td></tr>
+      <tr><td colspan="5">Inga tester uppladdade ännu.</td></tr>
     {% endfor %}
   </tbody>
 </table>
