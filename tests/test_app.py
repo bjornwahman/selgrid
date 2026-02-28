@@ -1,5 +1,6 @@
 import io
 import json
+from pathlib import Path
 
 import app as selgrid_app
 
@@ -22,28 +23,23 @@ def ensure_admin_user():
             selgrid_app.db.session.commit()
 
 
-def login_admin(client):
-    ensure_admin_user()
-    return client.post(
-        "/login",
-        data={"username": selgrid_app.DEFAULT_ADMIN_USERNAME, "password": selgrid_app.DEFAULT_ADMIN_PASSWORD},
-        follow_redirects=True,
-    )
-
-
-def upload_side(client, name="demo.side"):
-    side_payload = {
+def build_side_payload():
+    return {
         "id": "project-1",
         "version": "2.0",
         "name": "demo",
         "urls": ["https://example.com"],
-        "tests": [{"id": "t-1", "name": "mitt test", "commands": [{"command": "open", "target": "/", "value": ""}]}],
+        "tests": [
+            {
+                "id": "t-1",
+                "name": "mitt test",
+                "commands": [
+                    {"command": "open", "target": "/", "value": ""},
+                    {"command": "waitForElement", "target": "css=.hero", "value": "5"},
+                ],
+            }
+        ],
     }
-    data = {
-        "interval_minutes": "5",
-        "side_file": (io.BytesIO(json.dumps(side_payload).encode("utf-8")), name),
-    }
-    return client.post("/dashboard", data=data, content_type="multipart/form-data", follow_redirects=True)
 
 
 def test_secret_replacement():
@@ -51,71 +47,78 @@ def test_secret_replacement():
     assert out == "hello world"
 
 
-def test_default_admin_exists_and_register_disabled():
-    selgrid_app.app.config.update(TESTING=True)
-    reset_db()
-
-    ensure_admin_user()
-
-    client = selgrid_app.app.test_client()
-    response = client.get("/register", follow_redirects=True)
-    assert response.status_code == 200
-    assert b"Sj\xc3\xa4lvregistrering" in response.data
-
-
-def test_upload_edit_delete_flow():
+def test_upload_via_file_and_raw_json():
     selgrid_app.app.config.update(TESTING=True)
     reset_db()
     client = selgrid_app.app.test_client()
-    login_admin(client)
+    register_and_login(client)
 
-    response = upload_side(client)
+    payload = build_side_payload()
+    file_data = {
+        "interval_minutes": "5",
+        "side_file": (io.BytesIO(json.dumps(payload).encode("utf-8")), "demo.side"),
+    }
+    response = client.post("/dashboard", data=file_data, content_type="multipart/form-data", follow_redirects=True)
     assert response.status_code == 200
     assert b"mitt test" in response.data
 
-    with selgrid_app.app.app_context():
-        test_case = selgrid_app.TestCase.query.first()
-        test_case_id = test_case.id
-
-    edit_response = client.post(
-        f"/test/{test_case_id}/edit",
-        data={"name": "Uppdaterad check", "interval_minutes": "7", "selenium_test_id": "t-1", "active": "on"},
-        follow_redirects=True,
-    )
-    assert edit_response.status_code == 200
-    assert b"Uppdaterad check" in edit_response.data
-
-    delete_response = client.post(f"/test/{test_case_id}/delete", follow_redirects=True)
-    assert delete_response.status_code == 200
+    raw_data = {
+        "interval_minutes": "3",
+        "side_raw": json.dumps(payload),
+    }
+    raw_response = client.post("/dashboard", data=raw_data, follow_redirects=True)
+    assert raw_response.status_code == 200
 
 
-def test_admin_can_create_token_and_use_api():
+def test_edit_table_and_add_note():
     selgrid_app.app.config.update(TESTING=True)
     reset_db()
     client = selgrid_app.app.test_client()
-    login_admin(client)
+    register_and_login(client)
 
-    create_token_response = client.post("/admin", data={"name": "CI"}, follow_redirects=True)
-    assert create_token_response.status_code == 200
-    assert b"Ny token" in create_token_response.data
+    payload = build_side_payload()
+    client.post(
+        "/dashboard",
+        data={
+            "interval_minutes": "5",
+            "side_file": (io.BytesIO(json.dumps(payload).encode("utf-8")), "demo.side"),
+        },
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
 
     with selgrid_app.app.app_context():
-        token = selgrid_app.ApiToken.query.first()
-        assert token is not None
+        case = selgrid_app.TestCase.query.first()
+        case_id = case.id
+        file_path = Path(case.file_path)
 
-    upload_side(client)
-    raw_token = None
-    page = create_token_response.data.decode("utf-8")
-    marker = "<code>"
-    if marker in page:
-        raw_token = page.split(marker, 1)[1].split("</code>", 1)[0]
+    response = client.post(
+        f"/test/{case_id}/edit",
+        data={
+            "action": "update_side",
+            "command[]": ["open", "unsupportedCommand"],
+            "target[]": ["/", "css=.x"],
+            "value[]": ["", ""],
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"Varning" in response.data
 
-    api_response = client.get("/api/tests", headers={"Authorization": f"Bearer {raw_token}"})
-    assert api_response.status_code == 200
-    assert isinstance(api_response.get_json(), list)
+    note_response = client.post(
+        f"/test/{case_id}/edit",
+        data={"action": "add_note", "note_text": "nu startar vi"},
+        follow_redirects=True,
+    )
+    assert note_response.status_code == 200
+
+    data = json.loads(file_path.read_text(encoding="utf-8"))
+    commands = data["tests"][0]["commands"]
+    assert commands[-1]["command"] == "comment"
+    assert commands[-1]["value"] == "nu startar vi"
 
 
-def test_wait_for_element_alias_uses_visibility_wait(monkeypatch):
+def test_wait_alias_supported_and_notimplemented_becomes_warning():
     calls = {"condition": None}
 
     class FakeWait:
@@ -127,10 +130,10 @@ def test_wait_for_element_alias_uses_visibility_wait(monkeypatch):
             calls["condition"] = condition
             return True
 
-    monkeypatch.setattr(selgrid_app, "WebDriverWait", FakeWait)
-
     class FakeDriver:
-        pass
+        def find_elements(self, *_args):
+            return []
 
+    selgrid_app.WebDriverWait = FakeWait
     selgrid_app.perform_command(FakeDriver(), "waitForElement", "css=.item", "3")
     assert calls["condition"] is not None

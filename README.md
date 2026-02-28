@@ -1,49 +1,42 @@
 # Selgrid
 
-Selgrid är en modern webbapp för att köra Selenium IDE (`.side`) tester mot Selenium Grid på samma server.
+Selgrid är en webbapp för att köra Selenium IDE (`.side`) tester mot Selenium Grid på samma server.
 
 ## Funktioner
 
-- Dark mode GUI med professionell dashboard
-- Uppladdning och körning av `.side`-checkar
-- Editera, pausa och ta bort checkar
-- Körhistorik med trendgraf över svarstid/status
-- Secrets per check via `${SECRET_KEY}`
-- Admin-sida för API bearer tokens (`/admin`)
-- Swagger/OpenAPI-dokumentation under `/docs`
+- Form-baserad autentisering
+- Uppladdning av `.side` via fil **eller raw JSON (paste)**
+- Redigering av check-inställningar (namn, intervall, aktiv)
+- Redigering av `.side`-steg i GUI i tabellform (kommando/target/value)
+- Lägg till textnoteringar i testflödet ("nu startar vi", "nu klickar vi", etc.)
+- Varningar i UI om checken innehåller kommandon utan implementation
+- Manuell körning + schemalagda körningar
+- Körhistorik med stegmetrics och trendgraf över total körtid
+- Extra metrics: antal körningar, success rate, snittid och varningssteg
+- Dark mode UI med orange kontrastfärg
 
-## Inloggning
+## Krav på servern
 
-Självregistrering är avstängd.
+- Python 3.10+
+- Java 17+
+- Chrome/Chromium installerad
+- Selenium Grid (standalone) installerad lokalt
 
-Standardkonto vid ny installation:
-- username: `admin`
-- password: `admin`
-
-Du kan ändra standardvärden med miljövariabler:
-- `DEFAULT_ADMIN_USERNAME`
-- `DEFAULT_ADMIN_PASSWORD`
-
-## Selenium Grid lokalt på servern
+## Installera Selenium Grid lokalt på servern
 
 ```bash
 scripts/install_local_grid.sh
+```
+
+Starta sedan Grid:
+
+```bash
 scripts/start_local_grid.sh
 ```
 
+Grid startar som standard på `http://127.0.0.1:4444`.
+
 ## Starta webbappen
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python app.py
-```
-
-## API (Bearer Auth)
-
-1. Logga in som admin och skapa token på `/admin`.
-2. Anropa API med header:
 
 ```bash
 Authorization: Bearer <token>
@@ -55,10 +48,38 @@ Exempel:
 curl -H "Authorization: Bearer <token>" http://127.0.0.1:8080/api/tests
 ```
 
+Öppna sedan `http://localhost:8080`.
+
 ## Konfiguration
 
 - `SELENIUM_REMOTE_URL` (default: `http://127.0.0.1:4444/wd/hub`)
 - `APP_SECRET` (default: `dev-secret`)
-- `DATABASE_URL` (default: `sqlite:///selgrid.db`)
-- `DEFAULT_ADMIN_USERNAME` (default: `admin`)
-- `DEFAULT_ADMIN_PASSWORD` (default: `admin`)
+- `DATABASE_URL` (default: lokal SQLite-fil `selgrid.db`)
+- `GRID_PORT` (används av `scripts/start_local_grid.sh`, default: `4444`)
+- `SELENIUM_VERSION` (används av scripts, default: `4.27.0`)
+- `SELENIUM_DIR` (används av scripts, default: `./.selenium`)
+
+## Stödda Selenium IDE-kommandon
+
+- `open`
+- `click`
+- `doubleClick`
+- `type`
+- `sendKeys`
+- `select` (`label=`, `value=`, `index=`)
+- `check` / `uncheck`
+- `mouseOver`
+- `submit`
+- `pause`
+- `assertTitle`
+- `assertText`
+- `assertValue`
+- `assertElementPresent`
+- `assertElementNotPresent`
+- `waitForElementPresent`
+- `waitForElementVisible` / `waitForElement`
+- `waitForElementNotPresent` / `waitForElementNotVisible`
+- `setWindowSize`
+- `comment` / `echo` / `note` (textinformation i flödet)
+
+Om ett kommando inte stöds ännu loggas det som **warning** på steget och visas tydligt i GUI.
