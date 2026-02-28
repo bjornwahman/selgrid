@@ -1,0 +1,3 @@
+2026-02-28 08:55:35,717 [INFO] app: Selgrid started. Version file: /workspace/selgrid/version.txt
+2026-02-28 08:55:36,810 [ERROR] app: Unhandled application error
+RuntimeError: boom

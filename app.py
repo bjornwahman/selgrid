@@ -54,6 +54,7 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 LOG_FILE_PATH = BASE_DIR / "selgrid.log"
 APP_VERSION_FILE = BASE_DIR / "version.txt"
+ERROR_TEMPLATE_PATH = BASE_DIR / "templates" / "500.html"
 
 
 def configure_logging():
@@ -866,7 +867,13 @@ def handle_unexpected_error(error):
         return error
 
     app.logger.exception("Unhandled application error", exc_info=error)
-    return render_template("500.html"), 500
+    if ERROR_TEMPLATE_PATH.exists():
+        return render_template("500.html"), 500
+    return (
+        "Internal Server Error. Se selgrid.log i projektets rot för detaljer.",
+        500,
+        {"Content-Type": "text/plain; charset=utf-8"},
+    )
 
 
 with app.app_context():

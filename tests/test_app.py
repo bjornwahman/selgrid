@@ -171,3 +171,7 @@ def test_global_error_handler_returns_500_page():
         response, status_code = selgrid_app.handle_unexpected_error(RuntimeError("boom"))
     assert status_code == 500
     assert "Något gick fel" in response
+
+
+def test_log_file_exists_in_project_root():
+    assert selgrid_app.LOG_FILE_PATH.exists()
