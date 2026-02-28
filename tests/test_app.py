@@ -629,3 +629,42 @@ def test_wait_for_element_clickable_uses_expected_condition():
     selgrid_app.WebDriverWait = FakeWait
     selgrid_app.perform_command(object(), "waitForElementClickable", "By.XPATH=//button", "4")
     assert calls["condition"] is not None
+
+
+def test_dashboard_shows_run_trend_bars():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+    client = selgrid_app.app.test_client()
+    register_and_login(client)
+
+    payload = build_side_payload()
+    client.post(
+        "/checks",
+        data={
+            "interval_minutes": "5",
+            "side_file": (io.BytesIO(json.dumps(payload).encode("utf-8")), "demo.side"),
+        },
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+
+    with selgrid_app.app.app_context():
+        case = selgrid_app.TestCase.query.first()
+        for idx, status in enumerate(["success", "failed", "success"]):
+            selgrid_app.db.session.add(
+                selgrid_app.TestRun(
+                    test_case_id=case.id,
+                    status=status,
+                    error_message=None,
+                    started_at=selgrid_app.datetime.utcnow(),
+                    finished_at=selgrid_app.datetime.utcnow(),
+                    total_duration_ms=1200 + (idx * 250),
+                )
+            )
+        selgrid_app.db.session.commit()
+
+    response = client.get("/dashboard")
+    assert response.status_code == 200
+    assert "Senaste 3 körningar".encode("utf-8") in response.data
+    assert b"run-trend-bar success" in response.data
+    assert b"run-trend-bar failed" in response.data

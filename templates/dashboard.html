@@ -30,6 +30,30 @@
               Ingen historik ännu
             {% endif %}
           </div>
+          {% if row.recent_runs %}
+            <div class="run-trend">
+              <div class="run-trend-label">Senaste {{ row.recent_runs|length }} körningar</div>
+              <div class="run-trend-bars" aria-label="Trend för senaste körningar">
+                {% for recent_run in row.recent_runs %}
+                  {% if recent_run.status == 'success' %}
+                    {% set bar_class = 'success' %}
+                  {% elif recent_run.status == 'failed' %}
+                    {% set bar_class = 'failed' %}
+                  {% else %}
+                    {% set bar_class = 'pending' %}
+                  {% endif %}
+                  {% set duration = recent_run.total_duration_ms or 0 %}
+                  {% set clamped = [duration, 4000]|min %}
+                  {% set bar_height = (clamped / 4000 * 22) + 8 %}
+                  <span
+                    class="run-trend-bar {{ bar_class }}"
+                    style="height: {{ '%.1f'|format(bar_height) }}px"
+                    title="{{ recent_run.status }} · {{ duration }} ms"
+                  ></span>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
         </div>
       </a>
     </div>

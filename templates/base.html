@@ -67,6 +67,35 @@
         background: rgba(108, 117, 125, 0.2);
         border-color: rgba(108, 117, 125, 0.6);
       }
+      .run-trend {
+        margin-top: 0.75rem;
+      }
+      .run-trend-label {
+        font-size: 0.75rem;
+        color: var(--sel-muted);
+        margin-bottom: 0.25rem;
+      }
+      .run-trend-bars {
+        display: grid;
+        grid-template-columns: repeat(8, minmax(0, 1fr));
+        gap: 0.3rem;
+        align-items: end;
+        min-height: 1.75rem;
+      }
+      .run-trend-bar {
+        border-radius: 999px;
+        min-height: 0.4rem;
+        opacity: 0.95;
+      }
+      .run-trend-bar.success {
+        background-color: #20c997;
+      }
+      .run-trend-bar.failed {
+        background-color: #ff6b6b;
+      }
+      .run-trend-bar.pending {
+        background-color: #6c757d;
+      }
       code {
         color: #ffb15c;
       }
