@@ -428,7 +428,7 @@ def test_docu_and_status_pages_available_when_logged_in():
     assert b"Selenium Grid" in status_response.data
 
 
-def test_api_results_returns_runs_with_metrics():
+def test_api_results_returns_only_latest_run_summary():
     selgrid_app.app.config.update(TESTING=True)
     reset_db()
 
@@ -452,6 +452,17 @@ def test_api_results_returns_runs_with_metrics():
         selgrid_app.db.session.commit()
         case_id = case.id
 
+        older_run = selgrid_app.TestRun(
+            test_case_id=case.id,
+            started_at=selgrid_app.datetime.utcnow(),
+            finished_at=selgrid_app.datetime.utcnow(),
+            status="failed",
+            total_duration_ms=100,
+            error_message="boom",
+        )
+        selgrid_app.db.session.add(older_run)
+        selgrid_app.db.session.commit()
+
         run = selgrid_app.TestRun(
             test_case_id=case.id,
             started_at=selgrid_app.datetime.utcnow(),
@@ -462,20 +473,7 @@ def test_api_results_returns_runs_with_metrics():
         )
         selgrid_app.db.session.add(run)
         selgrid_app.db.session.commit()
-
-        selgrid_app.db.session.add(
-            selgrid_app.StepMetric(
-                test_run_id=run.id,
-                step_index=1,
-                command="open",
-                target="/",
-                value="",
-                duration_ms=111,
-                status="success",
-                error_message=None,
-            )
-        )
-        selgrid_app.db.session.commit()
+        latest_run_id = run.id
 
         token = create_api_token_for_user(user.id)
 
@@ -488,8 +486,10 @@ def test_api_results_returns_runs_with_metrics():
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["test_id"] == case_id
-    assert len(payload["results"]) == 1
-    assert payload["results"][0]["metrics"][0]["command"] == "open"
+    assert payload["latest_result"]["id"] == latest_run_id
+    assert payload["latest_result"]["status"] == "ok"
+    assert payload["latest_result"]["total_duration_ms"] == 321
+    assert payload["latest_result"]["timestamp"] is not None
 
 
 def test_api_results_returns_404_for_missing_or_foreign_test():
