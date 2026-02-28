@@ -13,6 +13,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from flask import (
     Flask,
     flash,
+    has_request_context,
     jsonify,
     redirect,
     render_template,
@@ -109,6 +110,7 @@ SUPPORTED_COMMANDS = {
     "echo",
     "note",
 }
+SUPPORTED_COMMAND_OPTIONS = sorted(SUPPORTED_COMMANDS)
 
 
 db = SQLAlchemy(app)
@@ -288,11 +290,66 @@ def api_auth_required(func=None):
     Keep it defined to avoid NameError during startup even when no API
     endpoints currently use token auth.
     """
+    def decorator(inner):
+        def wrapped(*args, **kwargs):
+            if not has_request_context():
+                return inner(*args, **kwargs)
+
+            auth_header = request.headers.get("Authorization", "")
+            if not auth_header.startswith("Bearer "):
+                return jsonify({"error": "Unauthorized"}), 401
+
+            raw_token = auth_header[len("Bearer ") :].strip()
+            if not raw_token:
+                return jsonify({"error": "Unauthorized"}), 401
+
+            token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+            token = ApiToken.query.filter_by(token_hash=token_hash).first()
+            if not token:
+                return jsonify({"error": "Unauthorized"}), 401
+
+            request.api_user = User.query.get(token.owner_id)
+            if not request.api_user:
+                return jsonify({"error": "Unauthorized"}), 401
+
+            token.last_used_at = datetime.utcnow()
+            db.session.commit()
+            return inner(*args, **kwargs)
+
+        wrapped.__name__ = inner.__name__
+        return wrapped
+
     if func is None:
         def wrapper(inner):
-            return inner
+            return decorator(inner)
         return wrapper
-    return func
+    return decorator(func)
+
+
+def serialize_test_case(test_case: TestCase):
+    latest_run = (
+        TestRun.query.filter_by(test_case_id=test_case.id)
+        .order_by(TestRun.started_at.desc())
+        .first()
+    )
+    latest_status = latest_run.status if latest_run else "never_run"
+    latest_duration = latest_run.total_duration_ms if latest_run else 0
+    if latest_status == "failed":
+        latest_duration = 0
+
+    return {
+        "id": test_case.id,
+        "name": test_case.name,
+        "active": test_case.active,
+        "interval_minutes": test_case.interval_minutes,
+        "latest_run": {
+            "status": latest_status,
+            "duration_ms": latest_duration,
+            "error_message": latest_run.error_message if latest_run else None,
+            "started_at": latest_run.started_at.isoformat() if latest_run else None,
+            "finished_at": latest_run.finished_at.isoformat() if latest_run and latest_run.finished_at else None,
+        },
+    }
 
 
 def perform_command(driver, command, target, value):
@@ -467,6 +524,8 @@ def run_test_case(test_case_id: int):
         run.error_message = error_message
         run.finished_at = datetime.utcnow()
         run.total_duration_ms = int((time.perf_counter() - start) * 1000)
+        if run.status == "failed":
+            run.total_duration_ms = 0
         db.session.commit()
 
 
@@ -545,12 +604,13 @@ def dashboard():
         selected_test = request.form.get("selenium_test_id", "")
 
         path = None
+        source_name = "pasted.side"
         if upload and upload.filename:
             if not is_allowed_file(upload.filename):
                 flash("Endast .side filer stöds")
                 return redirect(url_for("dashboard"))
-            filename = secure_filename(upload.filename)
-            path = UPLOAD_DIR / f"{int(time.time())}-{filename}"
+            source_name = secure_filename(upload.filename)
+            path = UPLOAD_DIR / f"{int(time.time())}-{source_name}"
             upload.save(path)
         elif side_raw:
             try:
@@ -570,12 +630,13 @@ def dashboard():
             return redirect(url_for("dashboard"))
 
         default_test = tests[0]
+        chosen_test = next((item for item in tests if item.get("id") == selected_test), default_test)
         test_case = TestCase(
             owner_id=current_user.id,
-            name=default_test.get("name", filename),
+            name=chosen_test.get("name") or source_name,
             file_path=str(path),
             interval_minutes=interval,
-            selenium_test_id=test_id,
+            selenium_test_id=chosen_test.get("id"),
         )
         db.session.add(test_case)
         db.session.commit()
@@ -701,6 +762,7 @@ def edit_test_case(test_case_id):
         test_case=test_case,
         selenium_tests=tests,
         commands=commands,
+        command_options=SUPPORTED_COMMAND_OPTIONS,
         unsupported_commands=unsupported,
     )
 
@@ -756,7 +818,7 @@ def test_detail(test_case_id):
         secrets=Secret.query.filter_by(test_case_id=test_case.id).all(),
         unsupported_commands=unsupported,
         chart_labels=[run.started_at.strftime("%Y-%m-%d %H:%M:%S") for run in reversed(runs)],
-        chart_durations=[run.total_duration_ms for run in reversed(runs)],
+        chart_durations=[0 if run.status == "failed" else run.total_duration_ms for run in reversed(runs)],
         chart_statuses=[run.status for run in reversed(runs)],
         total_runs=total_runs,
         success_rate=int((success_runs / total_runs) * 100) if total_runs else 0,

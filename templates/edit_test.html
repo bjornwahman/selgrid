@@ -59,16 +59,27 @@
 <div class="card mb-4">
   <div class="card-body">
     <h5>.side JSON i tabellform</h5>
+    <p class="text-muted mb-2">Du kan bygga checken direkt här genom att välja Selenium-kommando per steg (t.ex. <code>waitForElement</code>).</p>
     <form method="post">
       <input type="hidden" name="action" value="update_side">
       <div class="table-responsive">
-        <table class="table table-sm align-middle">
+        <table class="table table-sm align-middle" id="command-table">
           <thead><tr><th>#</th><th>Kommando</th><th>Target</th><th>Value / Text</th></tr></thead>
-          <tbody>
+          <tbody id="command-table-body">
             {% for command in commands %}
               <tr>
                 <td>{{ loop.index }}</td>
-                <td><input class="form-control" name="command[]" value="{{ command.command }}"></td>
+                <td>
+                  <select class="form-select" name="command[]">
+                    <option value="">Välj kommando</option>
+                    {% for option in command_options %}
+                      <option value="{{ option }}" {% if option == command.command %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                    {% if command.command and command.command not in command_options %}
+                      <option value="{{ command.command }}" selected>{{ command.command }} (okänt)</option>
+                    {% endif %}
+                  </select>
+                </td>
                 <td><input class="form-control" name="target[]" value="{{ command.target }}"></td>
                 <td><input class="form-control" name="value[]" value="{{ command.value }}"></td>
               </tr>
@@ -78,8 +89,54 @@
           </tbody>
         </table>
       </div>
-      <button class="btn btn-warning">Spara tabell</button>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-warning" type="button" id="add-command-row">Lägg till steg</button>
+        <button class="btn btn-warning" type="submit">Spara tabell</button>
+      </div>
     </form>
   </div>
 </div>
+
+<template id="command-row-template">
+  <tr>
+    <td class="step-index"></td>
+    <td>
+      <select class="form-select" name="command[]">
+        <option value="">Välj kommando</option>
+        {% for option in command_options %}
+          <option value="{{ option }}">{{ option }}</option>
+        {% endfor %}
+      </select>
+    </td>
+    <td><input class="form-control" name="target[]"></td>
+    <td><input class="form-control" name="value[]"></td>
+  </tr>
+</template>
+
+<script>
+  const tableBody = document.getElementById('command-table-body');
+  const addRowButton = document.getElementById('add-command-row');
+  const rowTemplate = document.getElementById('command-row-template');
+
+  function refreshStepIndexes() {
+    if (!tableBody) return;
+    const rows = tableBody.querySelectorAll('tr');
+    rows.forEach((row, index) => {
+      const stepCell = row.querySelector('.step-index') || row.querySelector('td:first-child');
+      if (stepCell) {
+        stepCell.textContent = index + 1;
+      }
+    });
+  }
+
+  if (addRowButton && tableBody && rowTemplate) {
+    addRowButton.addEventListener('click', () => {
+      const emptyRow = rowTemplate.content.cloneNode(true);
+      tableBody.appendChild(emptyRow);
+      refreshStepIndexes();
+    });
+  }
+
+  refreshStepIndexes();
+</script>
 {% endblock %}
