@@ -58,8 +58,39 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 LOG_FILE_PATH = BASE_DIR / "selgrid.log"
 APP_VERSION_FILE = BASE_DIR / "version.txt"
 ERROR_TEMPLATE_PATH = BASE_DIR / "templates" / "500.html"
-SELENIUM_GRID_STATUS_URL = os.getenv("SELENIUM_GRID_STATUS_URL", "http://127.0.0.1:4444/status")
-CHROME_SELENIUM_STATUS_URL = os.getenv("CHROME_SELENIUM_STATUS_URL", "http://127.0.0.1:5555/status")
+
+
+def is_running_in_docker():
+    if Path("/.dockerenv").exists():
+        return True
+
+    cgroup_path = Path("/proc/1/cgroup")
+    if not cgroup_path.exists():
+        return False
+
+    try:
+        cgroup_content = cgroup_path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+    return "docker" in cgroup_content or "kubepods" in cgroup_content or "containerd" in cgroup_content
+
+
+def build_selenium_urls():
+    docker_runtime = is_running_in_docker()
+    default_grid_host = os.getenv("SELENIUM_GRID_HOST", "selenium-hub" if docker_runtime else "127.0.0.1")
+    default_chrome_host = os.getenv("CHROME_SELENIUM_HOST", "chrome-selenium" if docker_runtime else "127.0.0.1")
+
+    return {
+        "grid_status": os.getenv("SELENIUM_GRID_STATUS_URL", f"http://{default_grid_host}:4444/status"),
+        "chrome_status": os.getenv("CHROME_SELENIUM_STATUS_URL", f"http://{default_chrome_host}:5555/status"),
+        "remote": os.getenv("SELENIUM_REMOTE_URL", f"http://{default_grid_host}:4444/wd/hub"),
+    }
+
+
+SELENIUM_URLS = build_selenium_urls()
+SELENIUM_GRID_STATUS_URL = SELENIUM_URLS["grid_status"]
+CHROME_SELENIUM_STATUS_URL = SELENIUM_URLS["chrome_status"]
 
 
 def configure_logging():
@@ -84,7 +115,7 @@ configure_logging()
 app.logger.info("Selgrid started. Version file: %s", APP_VERSION_FILE)
 
 ALLOWED_EXTENSIONS = {"side"}
-SELENIUM_REMOTE_URL = os.getenv("SELENIUM_REMOTE_URL", "http://127.0.0.1:4444/wd/hub")
+SELENIUM_REMOTE_URL = SELENIUM_URLS["remote"]
 DEFAULT_ADMIN_USERNAME = os.getenv("DEFAULT_ADMIN_USERNAME", "").strip()
 DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "").strip()
 SUPPORTED_COMMANDS = {

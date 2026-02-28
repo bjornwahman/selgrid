@@ -50,8 +50,12 @@ Grid startar som standard på `http://127.0.0.1:4444`.
 
 ## Konfiguration
 
-- `SELENIUM_REMOTE_URL` (default: `http://127.0.0.1:4444/wd/hub`)
+- `SELENIUM_REMOTE_URL` (default: `http://127.0.0.1:4444/wd/hub` utanför Docker, `http://selenium-hub:4444/wd/hub` i Docker)
 - `APP_SECRET` (default: `dev-secret`)
+- `SELENIUM_GRID_STATUS_URL` (default: `http://127.0.0.1:4444/status` utanför Docker, `http://selenium-hub:4444/status` i Docker)
+- `CHROME_SELENIUM_STATUS_URL` (default: `http://127.0.0.1:5555/status` utanför Docker, `http://chrome-selenium:5555/status` i Docker)
+- `SELENIUM_GRID_HOST` (valfritt hostnamn för Grid när URL:er inte satts explicit)
+- `CHROME_SELENIUM_HOST` (valfritt hostnamn för Chrome Selenium när URL:er inte satts explicit)
 - `DATABASE_URL` (default: lokal SQLite-fil `selgrid.db`)
 - `DEFAULT_ADMIN_USERNAME` och `DEFAULT_ADMIN_PASSWORD` (valfritt: om båda sätts skapas admin-användaren automatiskt vid start)
 - `GRID_PORT` (används av `scripts/start_local_grid.sh`, default: `4444`)
