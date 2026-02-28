@@ -1,13 +1,17 @@
+import hashlib
 import json
 import os
+import secrets
 import time
 from datetime import datetime
+from functools import wraps
 from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import (
     Flask,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -88,6 +92,16 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+
+
+class ApiToken(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    owner_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
+    token_hash = db.Column(db.String(64), unique=True, nullable=False)
+    token_prefix = db.Column(db.String(12), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    last_used_at = db.Column(db.DateTime)
 
 
 class TestCase(db.Model):
@@ -180,14 +194,14 @@ def get_unsupported_commands(payload: dict, selenium_test_id: str):
 
 
 def get_secrets_map(test_case_id: int):
-    secrets = Secret.query.filter_by(test_case_id=test_case_id).all()
-    return {item.key: item.value for item in secrets}
+    secrets_list = Secret.query.filter_by(test_case_id=test_case_id).all()
+    return {item.key: item.value for item in secrets_list}
 
 
-def replace_secret(value: str, secrets: dict):
+def replace_secret(value: str, secrets_map: dict):
     if not value:
         return value
-    for key, secret in secrets.items():
+    for key, secret in secrets_map.items():
         value = value.replace(f"${{{key}}}", secret)
     return value
 
@@ -370,7 +384,7 @@ def run_test_case(test_case_id: int):
             options.add_argument("--disable-dev-shm-usage")
             driver = webdriver.Remote(command_executor=SELENIUM_REMOTE_URL, options=options)
 
-            secrets = get_secrets_map(test_case.id)
+            secrets_map = get_secrets_map(test_case.id)
             base_url = urls[0] if urls else ""
             if base_url:
                 driver.get(base_url)
@@ -378,8 +392,8 @@ def run_test_case(test_case_id: int):
             for idx, step in enumerate(selenium_test.get("commands", []), start=1):
                 step_start = time.perf_counter()
                 command = step.get("command", "")
-                target = replace_secret(step.get("target", ""), secrets)
-                value = replace_secret(step.get("value", ""), secrets)
+                target = replace_secret(step.get("target", ""), secrets_map)
+                value = replace_secret(step.get("value", ""), secrets_map)
                 metric = StepMetric(
                     test_run_id=run.id,
                     step_index=idx,
@@ -467,21 +481,8 @@ def index():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    if request.method == "POST":
-        username = request.form.get("username", "").strip()
-        password = request.form.get("password", "")
-        if not username or not password:
-            flash("Användarnamn och lösenord krävs")
-            return redirect(url_for("register"))
-        if User.query.filter_by(username=username).first():
-            flash("Användarnamnet är redan upptaget")
-            return redirect(url_for("register"))
-        user = User(username=username, password_hash=generate_password_hash(password))
-        db.session.add(user)
-        db.session.commit()
-        login_user(user)
-        return redirect(url_for("dashboard"))
-    return render_template("register.html")
+    flash("Självregistrering är avstängd. Logga in med admin-kontot.")
+    return redirect(url_for("login"))
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -539,12 +540,10 @@ def dashboard():
             flash("Inga tester hittades i filen")
             return redirect(url_for("dashboard"))
 
-        test_id = selected_test or tests[0].get("id")
-        test_name = next((t.get("name") for t in tests if t.get("id") == test_id), tests[0].get("name"))
-
+        default_test = tests[0]
         test_case = TestCase(
             owner_id=current_user.id,
-            name=test_name,
+            name=default_test.get("name", filename),
             file_path=str(path),
             interval_minutes=interval,
             selenium_test_id=test_id,
@@ -748,14 +747,75 @@ def add_secret(test_case_id):
         flash("Både nyckel och värde krävs")
         return redirect(url_for("test_detail", test_case_id=test_case.id))
 
-    secret = Secret.query.filter_by(test_case_id=test_case.id, key=key).first()
-    if secret:
-        secret.value = value
+    secret_obj = Secret.query.filter_by(test_case_id=test_case.id, key=key).first()
+    if secret_obj:
+        secret_obj.value = value
     else:
         db.session.add(Secret(test_case_id=test_case.id, key=key, value=value))
     db.session.commit()
     flash("Secret sparad")
     return redirect(url_for("test_detail", test_case_id=test_case.id))
+
+
+@app.route("/docs")
+def docs_page():
+    return render_template("docs.html")
+
+
+@app.route("/docs/openapi.json")
+def docs_openapi():
+    return jsonify(
+        {
+            "openapi": "3.0.3",
+            "info": {"title": "Selgrid API", "version": "1.0.0"},
+            "components": {
+                "securitySchemes": {
+                    "bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "API token"}
+                }
+            },
+            "security": [{"bearerAuth": []}],
+            "paths": {
+                "/api/health": {"get": {"summary": "Healthcheck", "responses": {"200": {"description": "OK"}}}},
+                "/api/tests": {
+                    "get": {
+                        "summary": "Lista checkar",
+                        "responses": {"200": {"description": "Lista"}, "401": {"description": "Unauthorized"}},
+                    }
+                },
+                "/api/tests/{id}/run": {
+                    "post": {
+                        "summary": "Kör check nu",
+                        "parameters": [
+                            {"name": "id", "in": "path", "required": True, "schema": {"type": "integer"}}
+                        ],
+                        "responses": {"200": {"description": "Started"}, "404": {"description": "Not found"}},
+                    }
+                },
+            },
+        }
+    )
+
+
+@app.route("/api/health")
+def api_health():
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/tests", methods=["GET"])
+@api_auth_required
+def api_tests():
+    tests = TestCase.query.filter_by(owner_id=request.api_user.id).order_by(TestCase.id.desc()).all()
+    return jsonify([serialize_test_case(test_case) for test_case in tests])
+
+
+@app.route("/api/tests/<int:test_case_id>/run", methods=["POST"])
+@api_auth_required
+def api_run_now(test_case_id):
+    test_case = TestCase.query.filter_by(id=test_case_id, owner_id=request.api_user.id).first()
+    if not test_case:
+        return jsonify({"error": "Test not found"}), 404
+    run_test_case(test_case.id)
+    return jsonify({"message": "Run started", "test_id": test_case.id})
 
 
 @app.route("/uploads/<path:filename>")

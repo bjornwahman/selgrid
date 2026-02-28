@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Dashboard</h2>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Dashboard</h2>
+  <span class="pill">Inloggad som {{ current_user.username }}</span>
+</div>
 <div class="card mb-4">
   <div class="card-body">
     <h5>Lägg till .side-check</h5>
@@ -15,7 +18,11 @@
         <textarea class="form-control" name="side_raw" rows="6" placeholder='{"tests": [...], "urls": [...]}'></textarea>
       </div>
       <div class="mb-3">
-        <label class="form-label">Kör var (minuter)</label>
+        <label class="form-label">Eller klistra in rå .side JSON</label>
+        <textarea class="form-control" name="side_raw" rows="6" placeholder='{"tests": [...], "urls": [...]}'></textarea>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Intervall (minuter)</label>
         <input type="number" class="form-control" name="interval_minutes" value="5" min="1" required>
       </div>
       <button class="btn btn-warning">Spara och schemalägg</button>
