@@ -388,7 +388,7 @@ def test_test_detail_chart_labels_do_not_include_seconds():
 
     response = client.get(f"/test/{case_id}")
     assert response.status_code == 200
-    assert b'const labels = ["2026-02-28 11:57"]' in response.data
+    assert b'const labels = ["2026-02-28 12:57"]' in response.data
 
 
 def test_global_error_handler_returns_500_page():

@@ -46,7 +46,7 @@
   {% set steps = metrics[run.id] %}
   <div class="card mb-3">
     <div class="card-header d-flex justify-content-between">
-      <span>{{ run.started_at }} - {% if run.status == 'failed' %}<span class='badge text-bg-danger'>FAILED</span>{% elif run.status == 'success' %}<span class='badge text-bg-success'>SUCCESS</span>{% else %}<span class='badge text-bg-secondary'>{{ run.status }}</span>{% endif %}</span>
+      <span>{{ run.started_at | format_local_datetime('%Y-%m-%d %H:%M:%S %Z') }} - {% if run.status == 'failed' %}<span class='badge text-bg-danger'>FAILED</span>{% elif run.status == 'success' %}<span class='badge text-bg-success'>SUCCESS</span>{% else %}<span class='badge text-bg-secondary'>{{ run.status }}</span>{% endif %}</span>
       <span><strong>Total:</strong> {% if run.status == 'failed' %}0{% else %}{{ run.total_duration_ms }}{% endif %} ms</span>
     </div>
     <div class="card-body">
