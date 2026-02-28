@@ -12,7 +12,15 @@ def reset_db():
 
 
 def register_and_login(client):
-    client.post("/register", data={"username": "anna", "password": "hemligt"}, follow_redirects=True)
+    with selgrid_app.app.app_context():
+        selgrid_app.db.session.add(
+            selgrid_app.User(
+                username="anna",
+                password_hash=selgrid_app.generate_password_hash("hemligt"),
+            )
+        )
+        selgrid_app.db.session.commit()
+    client.post("/login", data={"username": "anna", "password": "hemligt"}, follow_redirects=True)
 
 
 def build_side_payload():
@@ -84,6 +92,10 @@ def test_edit_table_and_add_note():
         case_id = case.id
         file_path = Path(case.file_path)
 
+    edit_view = client.get(f"/test/{case_id}/edit", follow_redirects=True)
+    assert b"waitForElement" in edit_view.data
+    assert b"L\xc3\xa4gg till steg" in edit_view.data
+
     response = client.post(
         f"/test/{case_id}/edit",
         data={
@@ -137,6 +149,42 @@ def test_api_auth_required_exists_for_backward_compatibility():
         return "ok"
 
     assert sample() == "ok"
+
+
+def test_serialize_test_case_failed_reports_zero_ms():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+
+    with selgrid_app.app.app_context():
+        user = selgrid_app.User(username="user1", password_hash="x")
+        selgrid_app.db.session.add(user)
+        selgrid_app.db.session.commit()
+
+        case = selgrid_app.TestCase(
+            owner_id=user.id,
+            name="case",
+            file_path="/tmp/demo.side",
+            interval_minutes=5,
+            selenium_test_id="t-1",
+            active=True,
+        )
+        selgrid_app.db.session.add(case)
+        selgrid_app.db.session.commit()
+
+        run = selgrid_app.TestRun(
+            test_case_id=case.id,
+            started_at=selgrid_app.datetime.utcnow(),
+            finished_at=selgrid_app.datetime.utcnow(),
+            status="failed",
+            total_duration_ms=1234,
+            error_message="broken",
+        )
+        selgrid_app.db.session.add(run)
+        selgrid_app.db.session.commit()
+
+        payload = selgrid_app.serialize_test_case(case)
+        assert payload["latest_run"]["status"] == "failed"
+        assert payload["latest_run"]["duration_ms"] == 0
 
 
 def test_invalid_side_file_gracefully_redirects_from_detail():
