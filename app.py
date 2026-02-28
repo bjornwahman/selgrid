@@ -148,6 +148,9 @@ SUPPORTED_COMMANDS = {
     "comment",
     "echo",
     "note",
+    "storeText",
+    "storeValue",
+    "storeTitle",
 }
 SUPPORTED_COMMAND_OPTIONS = sorted(SUPPORTED_COMMANDS)
 COMMAND_DOCS = [
@@ -180,6 +183,21 @@ COMMAND_DOCS = [
     {"command": "comment", "description": "Kommentarsteg som loggas men inte kör UI-action.", "example": "comment | | Start av login"},
     {"command": "echo", "description": "Skriver ut text i loggen.", "example": "echo | | Login steg 1"},
     {"command": "note", "description": "Alias för kommentars-/noteringssteg i Selenium IDE.", "example": "note | | Kontrollera dashboard"},
+    {
+        "command": "storeText",
+        "description": "Läser text från element och sparar i variabel för senare steg (t.ex. echo).",
+        "example": "storeText | css=h1 | headingText",
+    },
+    {
+        "command": "storeValue",
+        "description": "Läser value-attribut från element och sparar i variabel.",
+        "example": "storeValue | id=email | inputValue",
+    },
+    {
+        "command": "storeTitle",
+        "description": "Sparar sidans title i variabel.",
+        "example": "storeTitle | pageTitle |",
+    },
 ]
 
 
@@ -315,6 +333,14 @@ def replace_secret(value: str, secrets_map: dict):
         return value
     for key, secret in secrets_map.items():
         value = value.replace(f"${{{key}}}", secret)
+    return value
+
+
+def replace_runtime_variables(value: str, variables_map: dict):
+    if not value:
+        return value
+    for key, var_value in variables_map.items():
+        value = value.replace(f"${{{key}}}", str(var_value))
     return value
 
 
@@ -570,9 +596,32 @@ def serialize_latest_test_run_summary(test_run: TestRun | None):
     }
 
 
-def perform_command(driver, command, target, value):
+def perform_command(driver, command, target, value, variables_map=None):
+    variables_map = variables_map if variables_map is not None else {}
+
     if command in {"comment", "echo", "note"}:
         return
+    if command == "storeText":
+        by, selector = resolve_locator(target)
+        variable_name = value.strip()
+        if not variable_name:
+            raise ValueError("Missing variable name for storeText")
+        variables_map[variable_name] = driver.find_element(by, selector).text
+        return
+    if command == "storeValue":
+        by, selector = resolve_locator(target)
+        variable_name = value.strip()
+        if not variable_name:
+            raise ValueError("Missing variable name for storeValue")
+        variables_map[variable_name] = driver.find_element(by, selector).get_attribute("value")
+        return
+    if command == "storeTitle":
+        variable_name = (value or target).strip()
+        if not variable_name:
+            raise ValueError("Missing variable name for storeTitle")
+        variables_map[variable_name] = driver.title
+        return
+
     if command == "open":
         driver.get(target)
     elif command == "click":
@@ -706,6 +755,7 @@ def run_test_case(test_case_id: int):
             driver = webdriver.Remote(command_executor=SELENIUM_REMOTE_URL, options=options)
 
             secrets_map = get_secrets_map(test_case.id)
+            variables_map = {}
             base_url = urls[0] if urls else ""
             if base_url:
                 driver.get(base_url)
@@ -713,8 +763,8 @@ def run_test_case(test_case_id: int):
             for idx, step in enumerate(selenium_test.get("commands", []), start=1):
                 step_start = time.perf_counter()
                 command = step.get("command", "")
-                target = replace_secret(step.get("target", ""), secrets_map)
-                value = replace_secret(step.get("value", ""), secrets_map)
+                target = replace_runtime_variables(replace_secret(step.get("target", ""), secrets_map), variables_map)
+                value = replace_runtime_variables(replace_secret(step.get("value", ""), secrets_map), variables_map)
                 metric = StepMetric(
                     test_run_id=run.id,
                     step_index=idx,
@@ -726,7 +776,7 @@ def run_test_case(test_case_id: int):
                 try:
                     if command == "open" and base_url and not target.startswith("http"):
                         target = f"{base_url.rstrip('/')}/{target.lstrip('/')}"
-                    perform_command(driver, command, target, value)
+                    perform_command(driver, command, target, value, variables_map=variables_map)
                 except NotImplementedError as exc:
                     metric.status = "warning"
                     metric.error_message = str(exc)

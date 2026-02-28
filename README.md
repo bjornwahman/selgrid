@@ -87,6 +87,7 @@ Grid startar som standard på `http://127.0.0.1:4444`.
 - `clear`
 - `setWindowSize`
 - `comment` / `echo` / `note` (textinformation i flödet)
+- `storeText` / `storeValue` / `storeTitle` (spara data i variabler för senare steg, t.ex. `${myVar}` i `echo`)
 
 
 Locator i `target` kan skrivas både som Selenium IDE-prefix (t.ex. `xpath=//button`) och i Selenium Python-stil (t.ex. `By.XPATH=//button`, `By.ID=email`, `By.CSS_SELECTOR=.btn`).
