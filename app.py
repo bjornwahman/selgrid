@@ -1076,7 +1076,7 @@ def test_detail(test_case_id):
         metrics=metrics,
         secrets=Secret.query.filter_by(test_case_id=test_case.id).all(),
         unsupported_commands=unsupported,
-        chart_labels=[run.started_at.strftime("%Y-%m-%d %H:%M:%S") for run in reversed(runs)],
+        chart_labels=[run.started_at.strftime("%Y-%m-%d %H:%M") for run in reversed(runs)],
         chart_durations=[0 if run.status == "failed" else run.total_duration_ms for run in reversed(runs)],
         chart_statuses=[run.status for run in reversed(runs)],
         total_runs=total_runs,

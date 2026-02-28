@@ -321,6 +321,42 @@ def test_invalid_side_file_gracefully_redirects_from_detail():
     assert "Kunde inte läsa .side-filen".encode("utf-8") in response.data
 
 
+def test_test_detail_chart_labels_do_not_include_seconds():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+    client = selgrid_app.app.test_client()
+    register_and_login(client)
+
+    payload = build_side_payload()
+    client.post(
+        "/checks",
+        data={
+            "interval_minutes": "5",
+            "side_file": (io.BytesIO(json.dumps(payload).encode("utf-8")), "demo.side"),
+        },
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+
+    with selgrid_app.app.app_context():
+        case = selgrid_app.TestCase.query.first()
+        case_id = case.id
+        selgrid_app.db.session.add(
+            selgrid_app.TestRun(
+                test_case_id=case.id,
+                started_at=selgrid_app.datetime(2026, 2, 28, 11, 57, 49),
+                finished_at=selgrid_app.datetime(2026, 2, 28, 11, 58, 10),
+                status="success",
+                total_duration_ms=21000,
+            )
+        )
+        selgrid_app.db.session.commit()
+
+    response = client.get(f"/test/{case_id}")
+    assert response.status_code == 200
+    assert b'const labels = ["2026-02-28 11:57"]' in response.data
+
+
 def test_global_error_handler_returns_500_page():
     with selgrid_app.app.test_request_context("/"):
         response, status_code = selgrid_app.handle_unexpected_error(RuntimeError("boom"))
