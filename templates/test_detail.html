@@ -25,7 +25,7 @@
 <div class="card mb-4">
   <div class="card-body">
     <h5>Trend över tid</h5>
-    <p class="text-muted mb-2">Total tid per körning, med statusmarkerad punktfärg.</p>
+    <p class="text-muted mb-2">Total tid per körning för själva teststegen, med statusmarkerad punktfärg.</p>
     <canvas id="runChart" height="100"></canvas>
   </div>
 </div>
@@ -43,6 +43,7 @@
 
 <h4>Körhistorik</h4>
 {% for run in runs[:1] %}
+  {% set steps = metrics[run.id] %}
   <div class="card mb-3">
     <div class="card-header d-flex justify-content-between">
       <span>{{ run.started_at }} - {% if run.status == 'failed' %}<span class='badge text-bg-danger'>FAILED</span>{% elif run.status == 'success' %}<span class='badge text-bg-success'>SUCCESS</span>{% else %}<span class='badge text-bg-secondary'>{{ run.status }}</span>{% endif %}</span>
@@ -53,7 +54,7 @@
       <table class="table table-sm">
         <thead><tr><th>#</th><th>Kommando</th><th>Target</th><th>Value/Text</th><th>Tid (ms)</th><th>Status</th><th>Info</th></tr></thead>
         <tbody>
-          {% for step in metrics[run.id] %}
+          {% for step in steps %}
             <tr>
               <td>{{ step.step_index }}</td>
               <td>{{ step.command }}</td>
