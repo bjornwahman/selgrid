@@ -235,6 +235,12 @@ login_manager = LoginManager(app)
 login_manager.login_view = "login"
 scheduler = BackgroundScheduler()
 
+HEALTH_CACHE_TTL_SECONDS = 15
+health_cache = {
+    "grid": {"checked_at": 0.0, "value": None},
+    "chrome": {"checked_at": 0.0, "value": None},
+}
+
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -468,6 +474,31 @@ def check_service_health(url: str):
 
     is_ok, details = parse_health_payload(payload)
     return {"ok": is_ok, "url": url, "details": details or "svar mottaget", "payload": payload}
+
+
+def get_cached_service_health(cache_key: str, url: str):
+    now = time.time()
+    cache_item = health_cache.get(cache_key, {"checked_at": 0.0, "value": None})
+
+    if cache_item["value"] and now - cache_item["checked_at"] < HEALTH_CACHE_TTL_SECONDS:
+        return cache_item["value"]
+
+    health = check_service_health(url)
+    health_cache[cache_key] = {"checked_at": now, "value": health}
+    return health
+
+
+@app.context_processor
+def inject_topbar_health():
+    if not current_user.is_authenticated:
+        return {"topbar_health": None}
+
+    return {
+        "topbar_health": {
+            "driver": get_cached_service_health("chrome", CHROME_SELENIUM_STATUS_URL),
+            "executioner": get_cached_service_health("grid", SELENIUM_GRID_STATUS_URL),
+        }
+    }
 
 
 def create_test_case_from_request(owner_id: int):
