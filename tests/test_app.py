@@ -11,16 +11,8 @@ def reset_db():
         selgrid_app.db.create_all()
 
 
-def ensure_admin_user():
-    with selgrid_app.app.app_context():
-        admin = selgrid_app.User.query.filter_by(username=selgrid_app.DEFAULT_ADMIN_USERNAME).first()
-        if not admin:
-            admin = selgrid_app.User(
-                username=selgrid_app.DEFAULT_ADMIN_USERNAME,
-                password_hash=selgrid_app.generate_password_hash(selgrid_app.DEFAULT_ADMIN_PASSWORD),
-            )
-            selgrid_app.db.session.add(admin)
-            selgrid_app.db.session.commit()
+def register_and_login(client):
+    client.post("/register", data={"username": "anna", "password": "hemligt"}, follow_redirects=True)
 
 
 def build_side_payload():
@@ -137,3 +129,11 @@ def test_wait_alias_supported_and_notimplemented_becomes_warning():
     selgrid_app.WebDriverWait = FakeWait
     selgrid_app.perform_command(FakeDriver(), "waitForElement", "css=.item", "3")
     assert calls["condition"] is not None
+
+
+def test_api_auth_required_exists_for_backward_compatibility():
+    @selgrid_app.api_auth_required
+    def sample():
+        return "ok"
+
+    assert sample() == "ok"

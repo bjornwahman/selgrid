@@ -252,6 +252,20 @@ def parse_positive_int(raw_value, default_value):
         return default_value
 
 
+def api_auth_required(func=None):
+    """Compatibility decorator for legacy API routes.
+
+    Some deployments still import or reference `@api_auth_required`.
+    Keep it defined to avoid NameError during startup even when no API
+    endpoints currently use token auth.
+    """
+    if func is None:
+        def wrapper(inner):
+            return inner
+        return wrapper
+    return func
+
+
 def perform_command(driver, command, target, value):
     if command in {"comment", "echo", "note"}:
         return
