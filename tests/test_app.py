@@ -47,6 +47,36 @@ def test_secret_replacement():
     assert out == "hello world"
 
 
+def test_build_selenium_urls_uses_docker_service_names(monkeypatch):
+    monkeypatch.setattr(selgrid_app, "is_running_in_docker", lambda: True)
+    monkeypatch.delenv("SELENIUM_GRID_HOST", raising=False)
+    monkeypatch.delenv("CHROME_SELENIUM_HOST", raising=False)
+    monkeypatch.delenv("SELENIUM_GRID_STATUS_URL", raising=False)
+    monkeypatch.delenv("CHROME_SELENIUM_STATUS_URL", raising=False)
+    monkeypatch.delenv("SELENIUM_REMOTE_URL", raising=False)
+
+    urls = selgrid_app.build_selenium_urls()
+
+    assert urls["grid_status"] == "http://selenium-hub:4444/status"
+    assert urls["chrome_status"] == "http://chrome-selenium:5555/status"
+    assert urls["remote"] == "http://selenium-hub:4444/wd/hub"
+
+
+def test_build_selenium_urls_prefers_explicit_env(monkeypatch):
+    monkeypatch.setattr(selgrid_app, "is_running_in_docker", lambda: True)
+    monkeypatch.setenv("SELENIUM_GRID_HOST", "grid")
+    monkeypatch.setenv("CHROME_SELENIUM_HOST", "chrome")
+    monkeypatch.setenv("SELENIUM_GRID_STATUS_URL", "http://custom-grid/status")
+    monkeypatch.setenv("CHROME_SELENIUM_STATUS_URL", "http://custom-chrome/status")
+    monkeypatch.setenv("SELENIUM_REMOTE_URL", "http://custom-grid/wd/hub")
+
+    urls = selgrid_app.build_selenium_urls()
+
+    assert urls["grid_status"] == "http://custom-grid/status"
+    assert urls["chrome_status"] == "http://custom-chrome/status"
+    assert urls["remote"] == "http://custom-grid/wd/hub"
+
+
 def test_upload_via_file_and_raw_json():
     selgrid_app.app.config.update(TESTING=True)
     reset_db()
