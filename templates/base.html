@@ -86,8 +86,8 @@
             {% if current_user.username == 'admin' %}
               <a class="btn btn-outline-warning btn-sm" href="{{ url_for('admin_page') }}">Admin</a>
             {% endif %}
-            <span class="text-light small me-2">Inloggad som {{ current_user.username }}</span>
             <a class="btn btn-outline-warning btn-sm" href="{{ url_for('logout') }}">Logga ut</a>
+            <span class="text-light small ms-2">Inloggad som {{ current_user.username }}</span>
           {% else %}
             <a class="btn btn-outline-warning btn-sm" href="{{ url_for('help_page') }}">Hjälp</a>
             <a class="btn btn-outline-warning btn-sm" href="{{ url_for('login') }}">Logga in</a>
