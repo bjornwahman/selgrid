@@ -495,6 +495,19 @@ def serialize_test_run_with_metrics(test_run: TestRun):
     }
 
 
+def serialize_latest_test_run_summary(test_run: TestRun | None):
+    if not test_run:
+        return None
+
+    status = "ok" if test_run.status == "success" else "failed" if test_run.status == "failed" else test_run.status
+    return {
+        "id": test_run.id,
+        "status": status,
+        "total_duration_ms": test_run.total_duration_ms,
+        "timestamp": test_run.started_at.isoformat() if test_run.started_at else None,
+    }
+
+
 def perform_command(driver, command, target, value):
     if command in {"comment", "echo", "note"}:
         return
@@ -1121,11 +1134,11 @@ def docu_openapi():
                 },
                 "/api/tests/{id}/results": {
                     "get": {
-                        "summary": "Lista körresultat och stegmätvärden för en check",
+                        "summary": "Visa senaste körningen för en check",
                         "parameters": [
                             {"name": "id", "in": "path", "required": True, "schema": {"type": "integer"}}
                         ],
-                        "responses": {"200": {"description": "Lista med körningar"}, "404": {"description": "Not found"}},
+                        "responses": {"200": {"description": "Senaste körning"}, "404": {"description": "Not found"}},
                     }
                 },
             },
@@ -1170,16 +1183,16 @@ def api_test_results(test_case_id):
     if not test_case:
         return jsonify({"error": "Test not found"}), 404
 
-    runs = (
+    latest_run = (
         TestRun.query.filter_by(test_case_id=test_case.id)
         .order_by(TestRun.started_at.desc())
-        .all()
+        .first()
     )
     return jsonify(
         {
             "test_id": test_case.id,
             "test_name": test_case.name,
-            "results": [serialize_test_run_with_metrics(run) for run in runs],
+            "latest_result": serialize_latest_test_run_summary(latest_run),
         }
     )
 
