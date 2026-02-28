@@ -166,8 +166,19 @@ class ApiToken(db.Model):
     name = db.Column(db.String(120), nullable=False)
     token_hash = db.Column(db.String(64), unique=True, nullable=False)
     token_prefix = db.Column(db.String(12), nullable=False)
+    token_value = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     last_used_at = db.Column(db.DateTime)
+
+
+def ensure_api_token_value_column():
+    inspector = db.inspect(db.engine)
+    columns = {column["name"] for column in inspector.get_columns("api_token")}
+    if "token_value" in columns:
+        return
+
+    db.session.execute(db.text("ALTER TABLE api_token ADD COLUMN token_value VARCHAR(255)"))
+    db.session.commit()
 
 
 class TestCase(db.Model):
@@ -860,7 +871,13 @@ def admin_page():
                 token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
                 token_prefix = raw_token[:8]
                 db.session.add(
-                    ApiToken(owner_id=owner.id, name=name, token_hash=token_hash, token_prefix=token_prefix)
+                    ApiToken(
+                        owner_id=owner.id,
+                        name=name,
+                        token_hash=token_hash,
+                        token_prefix=token_prefix,
+                        token_value=raw_token,
+                    )
                 )
                 db.session.commit()
                 created_token = raw_token
@@ -1220,6 +1237,7 @@ def handle_unexpected_error(error):
 
 with app.app_context():
     db.create_all()
+    ensure_api_token_value_column()
     ensure_default_admin_user()
     if not scheduler.running:
         scheduler.start()

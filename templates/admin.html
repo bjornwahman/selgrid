@@ -6,7 +6,7 @@
 {% if created_token %}
   <div class="alert alert-warning">
     <strong>Ny token:</strong> <code>{{ created_token }}</code><br>
-    Kopiera nu – token visas bara en gång.
+    Token finns också sparad i listan nedan.
   </div>
 {% endif %}
 
@@ -95,13 +95,19 @@
   <div class="card-body">
     <h5>Aktiva tokens</h5>
     <table class="table table-striped align-middle mb-0">
-      <thead><tr><th>Namn</th><th>Ägare</th><th>Prefix</th><th>Skapad</th><th>Senast använd</th><th></th></tr></thead>
+      <thead><tr><th>Namn</th><th>Ägare</th><th>Token</th><th>Skapad</th><th>Senast använd</th><th></th></tr></thead>
       <tbody>
       {% for token in tokens %}
         <tr>
           <td>{{ token.name }}</td>
           <td>{{ user_lookup.get(token.owner_id, token.owner_id) }}</td>
-          <td><code>{{ token.token_prefix }}…</code></td>
+          <td>
+            {% if token.token_value %}
+              <code>{{ token.token_value }}</code>
+            {% else %}
+              <span class="text-muted">Ej tillgänglig för äldre token ({{ token.token_prefix }}…)</span>
+            {% endif %}
+          </td>
           <td>{{ token.created_at }}</td>
           <td>{{ token.last_used_at or '-' }}</td>
           <td class="text-end">
