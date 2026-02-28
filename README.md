@@ -79,10 +79,16 @@ Grid startar som standard på `http://127.0.0.1:4444`.
 - `assertValue`
 - `assertElementPresent`
 - `assertElementNotPresent`
+- `assertElementVisible` / `assertElementNotVisible`
 - `waitForElementPresent`
 - `waitForElementVisible` / `waitForElement`
 - `waitForElementNotPresent` / `waitForElementNotVisible`
+- `waitForElementClickable`
+- `clear`
 - `setWindowSize`
 - `comment` / `echo` / `note` (textinformation i flödet)
+
+
+Locator i `target` kan skrivas både som Selenium IDE-prefix (t.ex. `xpath=//button`) och i Selenium Python-stil (t.ex. `By.XPATH=//button`, `By.ID=email`, `By.CSS_SELECTOR=.btn`).
 
 Om ett kommando inte stöds ännu loggas det som **warning** på steget och visas tydligt i GUI.

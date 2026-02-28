@@ -135,11 +135,15 @@ SUPPORTED_COMMANDS = {
     "assertValue",
     "assertElementPresent",
     "assertElementNotPresent",
+    "assertElementVisible",
+    "assertElementNotVisible",
     "waitForElementPresent",
     "waitForElementVisible",
     "waitForElement",
     "waitForElementNotPresent",
     "waitForElementNotVisible",
+    "waitForElementClickable",
+    "clear",
     "setWindowSize",
     "comment",
     "echo",
@@ -163,11 +167,15 @@ COMMAND_DOCS = [
     {"command": "assertValue", "description": "Verifierar value-attribut på ett inputfält.", "example": "assertValue | id=email | anna@example.com"},
     {"command": "assertElementPresent", "description": "Verifierar att elementet finns i DOM.", "example": "assertElementPresent | css=.hero |"},
     {"command": "assertElementNotPresent", "description": "Verifierar att elementet inte finns i DOM.", "example": "assertElementNotPresent | css=.error-banner |"},
+    {"command": "assertElementVisible", "description": "Verifierar att elementet finns och är synligt.", "example": "assertElementVisible | xpath=//main |"},
+    {"command": "assertElementNotVisible", "description": "Verifierar att elementet saknas eller är dolt.", "example": "assertElementNotVisible | css=.loading-mask |"},
     {"command": "waitForElementPresent", "description": "Väntar tills elementet finns i DOM.", "example": "waitForElementPresent | css=.result | 10"},
     {"command": "waitForElementVisible", "description": "Väntar tills elementet syns på sidan.", "example": "waitForElementVisible | id=ready | 8"},
     {"command": "waitForElement", "description": "Alias för waitForElementPresent.", "example": "waitForElement | css=.card | 5"},
     {"command": "waitForElementNotPresent", "description": "Väntar tills elementet försvinner från DOM.", "example": "waitForElementNotPresent | css=.loading | 10"},
     {"command": "waitForElementNotVisible", "description": "Väntar tills elementet inte längre är synligt.", "example": "waitForElementNotVisible | css=.spinner | 10"},
+    {"command": "waitForElementClickable", "description": "Väntar tills elementet går att klicka.", "example": "waitForElementClickable | By.XPATH=//button[@type='submit'] | 10"},
+    {"command": "clear", "description": "Rensar text i ett input-/textarea-fält.", "example": "clear | id=email |"},
     {"command": "setWindowSize", "description": "Sätter browserfönstrets storlek.", "example": "setWindowSize | 1440x900 |"},
     {"command": "comment", "description": "Kommentarsteg som loggas men inte kör UI-action.", "example": "comment | | Start av login"},
     {"command": "echo", "description": "Skriver ut text i loggen.", "example": "echo | | Login steg 1"},
@@ -330,6 +338,22 @@ def resolve_locator(target: str):
         return By.CLASS_NAME, target[len("class=") :]
     if target.startswith("tag="):
         return By.TAG_NAME, target[len("tag=") :]
+    if target.startswith("By.XPATH="):
+        return By.XPATH, target[len("By.XPATH=") :]
+    if target.startswith("By.CSS_SELECTOR="):
+        return By.CSS_SELECTOR, target[len("By.CSS_SELECTOR=") :]
+    if target.startswith("By.ID="):
+        return By.ID, target[len("By.ID=") :]
+    if target.startswith("By.NAME="):
+        return By.NAME, target[len("By.NAME=") :]
+    if target.startswith("By.LINK_TEXT="):
+        return By.LINK_TEXT, target[len("By.LINK_TEXT=") :]
+    if target.startswith("By.PARTIAL_LINK_TEXT="):
+        return By.PARTIAL_LINK_TEXT, target[len("By.PARTIAL_LINK_TEXT=") :]
+    if target.startswith("By.CLASS_NAME="):
+        return By.CLASS_NAME, target[len("By.CLASS_NAME=") :]
+    if target.startswith("By.TAG_NAME="):
+        return By.TAG_NAME, target[len("By.TAG_NAME=") :]
     return By.CSS_SELECTOR, target
 
 
@@ -563,6 +587,9 @@ def perform_command(driver, command, target, value):
         elem = driver.find_element(by, selector)
         elem.clear()
         elem.send_keys(value)
+    elif command == "clear":
+        by, selector = resolve_locator(target)
+        driver.find_element(by, selector).clear()
     elif command == "sendKeys":
         by, selector = resolve_locator(target)
         elem = driver.find_element(by, selector)
@@ -619,6 +646,15 @@ def perform_command(driver, command, target, value):
         by, selector = resolve_locator(target)
         if driver.find_elements(by, selector):
             raise AssertionError(f"Element should not exist: {target}")
+    elif command == "assertElementVisible":
+        by, selector = resolve_locator(target)
+        if not driver.find_element(by, selector).is_displayed():
+            raise AssertionError(f"Element is not visible: {target}")
+    elif command == "assertElementNotVisible":
+        by, selector = resolve_locator(target)
+        elements = driver.find_elements(by, selector)
+        if elements and any(element.is_displayed() for element in elements):
+            raise AssertionError(f"Element is visible: {target}")
     elif command == "waitForElementPresent":
         by, selector = resolve_locator(target)
         timeout_s = int(value) if value else 10
@@ -631,6 +667,10 @@ def perform_command(driver, command, target, value):
         by, selector = resolve_locator(target)
         timeout_s = int(value) if value else 10
         WebDriverWait(driver, timeout_s).until_not(EC.presence_of_element_located((by, selector)))
+    elif command == "waitForElementClickable":
+        by, selector = resolve_locator(target)
+        timeout_s = int(value) if value else 10
+        WebDriverWait(driver, timeout_s).until(EC.element_to_be_clickable((by, selector)))
     elif command == "setWindowSize":
         width, height = (value or target).split("x")
         driver.set_window_size(int(width), int(height))
