@@ -29,6 +29,11 @@
           {% endfor %}
         </select>
       </div>
+      <div class="col-12">
+        <label class="form-label">Bas-URL för scriptet</label>
+        <input class="form-control" name="base_url" value="{{ base_url }}" placeholder="https://example.com">
+        <div class="form-text">Används av <code>open</code>-steg när target är relativ (t.ex. <code>/login</code>).</div>
+      </div>
       <div class="col-12 form-check ms-2">
         <input class="form-check-input" type="checkbox" name="active" id="active" {% if test_case.active %}checked{% endif %}>
         <label class="form-check-label" for="active">Aktiv schemaläggning</label>
@@ -64,11 +69,11 @@
       <input type="hidden" name="action" value="update_side">
       <div class="table-responsive">
         <table class="table table-sm align-middle" id="command-table">
-          <thead><tr><th>#</th><th>Kommando</th><th>Target</th><th>Value / Text</th></tr></thead>
+          <thead><tr><th>#</th><th>Kommando</th><th>Target</th><th>Value / Text</th><th>Åtgärder</th></tr></thead>
           <tbody id="command-table-body">
             {% for command in commands %}
-              <tr>
-                <td>{{ loop.index }}</td>
+              <tr class="command-row">
+                <td class="step-index">{{ loop.index }}</td>
                 <td>
                   <select class="form-select" name="command[]">
                     <option value="">Välj kommando</option>
@@ -82,9 +87,17 @@
                 </td>
                 <td><input class="form-control" name="target[]" value="{{ command.target }}"></td>
                 <td><input class="form-control" name="value[]" value="{{ command.value }}"></td>
+                <td>
+                  <div class="d-flex gap-1">
+                    <button class="btn btn-sm btn-outline-secondary move-up" type="button" title="Flytta upp">↑</button>
+                    <button class="btn btn-sm btn-outline-secondary move-down" type="button" title="Flytta ner">↓</button>
+                    <button class="btn btn-sm btn-outline-info explain-command" type="button" title="Förklara kommando">?</button>
+                    <button class="btn btn-sm btn-outline-danger delete-step" type="button" title="Ta bort steg">✕</button>
+                  </div>
+                </td>
               </tr>
             {% else %}
-              <tr><td colspan="4">Inga steg i testet.</td></tr>
+              <tr id="empty-row"><td colspan="5">Inga steg i testet.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -98,7 +111,7 @@
 </div>
 
 <template id="command-row-template">
-  <tr>
+  <tr class="command-row">
     <td class="step-index"></td>
     <td>
       <select class="form-select" name="command[]">
@@ -110,6 +123,14 @@
     </td>
     <td><input class="form-control" name="target[]"></td>
     <td><input class="form-control" name="value[]"></td>
+    <td>
+      <div class="d-flex gap-1">
+        <button class="btn btn-sm btn-outline-secondary move-up" type="button" title="Flytta upp">↑</button>
+        <button class="btn btn-sm btn-outline-secondary move-down" type="button" title="Flytta ner">↓</button>
+        <button class="btn btn-sm btn-outline-info explain-command" type="button" title="Förklara kommando">?</button>
+        <button class="btn btn-sm btn-outline-danger delete-step" type="button" title="Ta bort steg">✕</button>
+      </div>
+    </td>
   </tr>
 </template>
 
@@ -117,12 +138,44 @@
   const tableBody = document.getElementById('command-table-body');
   const addRowButton = document.getElementById('add-command-row');
   const rowTemplate = document.getElementById('command-row-template');
+  const commandDescriptions = {
+    open: 'Öppnar en URL. Om target är relativ, används bas-URL från inställningarna.',
+    click: 'Klickar på elementet i target.',
+    doubleClick: 'Dubbelklickar på elementet i target.',
+    type: 'Skriver in value i elementet i target.',
+    sendKeys: 'Skickar tangenttryckningar i value till elementet i target.',
+    select: 'Väljer ett alternativ i en select-lista.',
+    check: 'Bockar i en checkbox.',
+    uncheck: 'Avmarkerar en checkbox.',
+    mouseOver: 'Hovrar muspekaren över elementet i target.',
+    submit: 'Skickar formuläret för elementet i target.',
+    pause: 'Pausar testet i antal millisekunder angivet i target/value.',
+    assertTitle: 'Verifierar att sidans titel matchar target eller value.',
+    assertText: 'Verifierar text på elementet i target mot value.',
+    assertValue: 'Verifierar elementets värde i target mot value.',
+    assertElementPresent: 'Verifierar att elementet i target finns.',
+    assertElementNotPresent: 'Verifierar att elementet i target inte finns.',
+    waitForElementPresent: 'Väntar tills elementet i target finns i DOM.',
+    waitForElementVisible: 'Väntar tills elementet i target är synligt.',
+    waitForElement: 'Alias för väntan på element i target.',
+    waitForElementNotPresent: 'Väntar tills elementet i target försvinner från DOM.',
+    waitForElementNotVisible: 'Väntar tills elementet i target inte längre är synligt.',
+    setWindowSize: 'Sätter fönsterstorlek, t.ex. 1280x720 i value/target.',
+    comment: 'Lägger till en textkommentar i testflödet.',
+    echo: 'Skriver ut text i loggen.',
+    note: 'Lägger till en anteckning i testet.'
+  };
+
+  function removeEmptyRow() {
+    const emptyRow = document.getElementById('empty-row');
+    if (emptyRow) emptyRow.remove();
+  }
 
   function refreshStepIndexes() {
     if (!tableBody) return;
-    const rows = tableBody.querySelectorAll('tr');
+    const rows = tableBody.querySelectorAll('tr.command-row');
     rows.forEach((row, index) => {
-      const stepCell = row.querySelector('.step-index') || row.querySelector('td:first-child');
+      const stepCell = row.querySelector('.step-index');
       if (stepCell) {
         stepCell.textContent = index + 1;
       }
@@ -131,9 +184,50 @@
 
   if (addRowButton && tableBody && rowTemplate) {
     addRowButton.addEventListener('click', () => {
+      removeEmptyRow();
       const emptyRow = rowTemplate.content.cloneNode(true);
       tableBody.appendChild(emptyRow);
       refreshStepIndexes();
+    });
+  }
+
+  if (tableBody) {
+    tableBody.addEventListener('click', (event) => {
+      const button = event.target.closest('button');
+      if (!button) return;
+      const row = event.target.closest('tr.command-row');
+      if (!row) return;
+
+      if (button.classList.contains('move-up')) {
+        const previousRow = row.previousElementSibling;
+        if (previousRow && previousRow.classList.contains('command-row')) {
+          tableBody.insertBefore(row, previousRow);
+          refreshStepIndexes();
+        }
+      }
+
+      if (button.classList.contains('move-down')) {
+        const nextRow = row.nextElementSibling;
+        if (nextRow && nextRow.classList.contains('command-row')) {
+          tableBody.insertBefore(nextRow, row);
+          refreshStepIndexes();
+        }
+      }
+
+      if (button.classList.contains('delete-step')) {
+        row.remove();
+        if (!tableBody.querySelector('tr.command-row')) {
+          tableBody.innerHTML = '<tr id="empty-row"><td colspan="5">Inga steg i testet.</td></tr>';
+        }
+        refreshStepIndexes();
+      }
+
+      if (button.classList.contains('explain-command')) {
+        const selectedCommand = row.querySelector('select[name="command[]"]')?.value || '';
+        const explanation = commandDescriptions[selectedCommand] || 'Ingen beskrivning finns för valt kommando ännu.';
+        const title = selectedCommand ? `Kommando: ${selectedCommand}` : 'Inget kommando valt';
+        alert(`${title}\n\n${explanation}`);
+      }
     });
   }
 
