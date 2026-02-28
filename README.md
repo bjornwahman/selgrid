@@ -39,10 +39,13 @@ Grid startar som standard på `http://127.0.0.1:4444`.
 ## Starta webbappen
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python app.py
+Authorization: Bearer <token>
+```
+
+Exempel:
+
+```bash
+curl -H "Authorization: Bearer <token>" http://127.0.0.1:8080/api/tests
 ```
 
 Öppna sedan `http://localhost:8080`.
