@@ -6,7 +6,7 @@
   <form method="post" action="{{ url_for('run_now', test_case_id=test_case.id) }}">
     <button class="btn btn-warning">Kör test nu</button>
   </form>
-  <a href="{{ url_for('edit_test', test_case_id=test_case.id) }}" class="btn btn-outline-warning">Editera check</a>
+  <a href="{{ url_for('edit_test_case', test_case_id=test_case.id) }}" class="btn btn-outline-warning">Editera check</a>
 </div>
 
 {% if unsupported_commands %}

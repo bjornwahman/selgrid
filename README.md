@@ -39,12 +39,6 @@ Grid startar som standard på `http://127.0.0.1:4444`.
 ## Starta webbappen
 
 ```bash
-Authorization: Bearer <token>
-```
-
-Exempel:
-
-```bash
 curl -H "Authorization: Bearer <token>" http://127.0.0.1:8080/api/tests
 ```
 

@@ -80,10 +80,6 @@ SUPPORTED_COMMANDS = {
 }
 
 
-DEFAULT_ADMIN_USERNAME = os.getenv("DEFAULT_ADMIN_USERNAME", "admin")
-DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin")
-
-
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
@@ -583,9 +579,9 @@ def dashboard():
     return render_template("dashboard.html", test_rows=test_rows)
 
 
-@app.route("/test/<int:test_case_id>/edit", methods=["GET", "POST"])
+@app.route("/test/<int:test_case_id>/edit", methods=["GET", "POST"], endpoint="edit_test_case")
 @login_required
-def edit_test(test_case_id):
+def edit_test_case(test_case_id):
     test_case = TestCase.query.filter_by(id=test_case_id, owner_id=current_user.id).first_or_404()
     payload, tests, _ = read_side_file(Path(test_case.file_path))
 
@@ -615,7 +611,7 @@ def edit_test(test_case_id):
             )
             if not selenium_test:
                 flash("Kunde inte hitta valt test i .side-fil")
-                return redirect(url_for("edit_test", test_case_id=test_case.id))
+                return redirect(url_for("edit_test_case", test_case_id=test_case.id))
 
             selenium_test["commands"] = commands
             write_side_file(Path(test_case.file_path), payload)
@@ -623,7 +619,7 @@ def edit_test(test_case_id):
             if unsupported:
                 flash(f"Varning: Kommandon som saknas stöd för: {', '.join(unsupported)}")
             flash(".side-tabellen uppdaterad")
-            return redirect(url_for("edit_test", test_case_id=test_case.id))
+            return redirect(url_for("edit_test_case", test_case_id=test_case.id))
 
         if form_action == "add_note":
             note_text = request.form.get("note_text", "").strip()
@@ -643,7 +639,7 @@ def edit_test(test_case_id):
                     )
                     write_side_file(Path(test_case.file_path), payload)
             flash("Textnotering tillagd i testet")
-            return redirect(url_for("edit_test", test_case_id=test_case.id))
+            return redirect(url_for("edit_test_case", test_case_id=test_case.id))
 
         name = request.form.get("name", "").strip()
         interval_minutes = parse_positive_int(
@@ -654,12 +650,12 @@ def edit_test(test_case_id):
 
         if not name:
             flash("Namn krävs")
-            return redirect(url_for("edit_test", test_case_id=test_case.id))
+            return redirect(url_for("edit_test_case", test_case_id=test_case.id))
 
         test_ids = {item.get("id") for item in tests}
         if selenium_test_id and selenium_test_id not in test_ids:
             flash("Valt test finns inte i .side-filen")
-            return redirect(url_for("edit_test", test_case_id=test_case.id))
+            return redirect(url_for("edit_test_case", test_case_id=test_case.id))
 
         test_case.name = name
         test_case.interval_minutes = interval_minutes
@@ -712,99 +708,6 @@ def delete_test(test_case_id):
         file_path.unlink()
 
     flash("Test borttaget")
-    return redirect(url_for("dashboard"))
-
-
-@app.route("/admin", methods=["GET", "POST"])
-@login_required
-def admin_page():
-    if not is_admin_user(current_user):
-        flash("Endast admin har åtkomst till sidan")
-        return redirect(url_for("dashboard"))
-
-    created_token = None
-    if request.method == "POST":
-        name = request.form.get("name", "").strip() or "Default token"
-        created_token, _ = issue_api_token(current_user.id, name)
-        flash("API-token skapad. Spara token nu, den visas bara en gång.")
-
-    tokens = ApiToken.query.filter_by(owner_id=current_user.id).order_by(ApiToken.created_at.desc()).all()
-    return render_template("admin.html", tokens=tokens, created_token=created_token)
-
-
-@app.route("/admin/token/<int:token_id>/delete", methods=["POST"])
-@login_required
-def delete_api_token(token_id):
-    if not is_admin_user(current_user):
-        flash("Endast admin har åtkomst till sidan")
-        return redirect(url_for("dashboard"))
-
-    token = ApiToken.query.filter_by(id=token_id, owner_id=current_user.id).first_or_404()
-    db.session.delete(token)
-    db.session.commit()
-    flash("API-token borttagen")
-    return redirect(url_for("admin_page"))
-
-
-@app.route("/test/<int:test_case_id>/edit", methods=["GET", "POST"])
-@login_required
-def edit_test(test_case_id):
-    test_case = TestCase.query.filter_by(id=test_case_id, owner_id=current_user.id).first_or_404()
-    _, tests, _ = read_side_file(Path(test_case.file_path))
-
-    if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        interval_minutes = int(request.form.get("interval_minutes", test_case.interval_minutes))
-        selenium_test_id = request.form.get("selenium_test_id", "").strip()
-        active = request.form.get("active") == "on"
-
-        if not name:
-            flash("Namn krävs")
-            return redirect(url_for("edit_test", test_case_id=test_case.id))
-
-        test_ids = {item.get("id") for item in tests}
-        if selenium_test_id and selenium_test_id not in test_ids:
-            flash("Valt test finns inte i .side-filen")
-            return redirect(url_for("edit_test", test_case_id=test_case.id))
-
-        test_case.name = name
-        test_case.interval_minutes = max(interval_minutes, 1)
-        if selenium_test_id:
-            test_case.selenium_test_id = selenium_test_id
-        test_case.active = active
-        db.session.commit()
-
-        if test_case.active:
-            schedule_test_case(test_case)
-        else:
-            unschedule_test_case(test_case.id)
-
-        flash("Check uppdaterad")
-        return redirect(url_for("test_detail", test_case_id=test_case.id))
-
-    return render_template("edit_test.html", test_case=test_case, selenium_tests=tests)
-
-
-@app.route("/test/<int:test_case_id>/delete", methods=["POST"])
-@login_required
-def delete_test(test_case_id):
-    test_case = TestCase.query.filter_by(id=test_case_id, owner_id=current_user.id).first_or_404()
-    unschedule_test_case(test_case.id)
-
-    StepMetric.query.filter(
-        StepMetric.test_run_id.in_(db.session.query(TestRun.id).filter_by(test_case_id=test_case.id))
-    ).delete(synchronize_session=False)
-    TestRun.query.filter_by(test_case_id=test_case.id).delete(synchronize_session=False)
-    Secret.query.filter_by(test_case_id=test_case.id).delete(synchronize_session=False)
-
-    file_path = Path(test_case.file_path)
-    db.session.delete(test_case)
-    db.session.commit()
-
-    if file_path.exists():
-        file_path.unlink()
-
-    flash("Check borttagen")
     return redirect(url_for("dashboard"))
 
 
