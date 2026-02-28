@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Checks</h2>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light btn-sm">Till dashboard</a>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h5 class="mb-3">Hantera checkar</h5>
+    <table class="table table-striped align-middle">
+      <thead>
+        <tr><th>Namn</th><th>Senaste status</th><th>Intervall</th><th>Varningar</th><th>Åtgärder</th></tr>
+      </thead>
+      <tbody>
+        {% for row in test_rows %}
+          {% set run = row.latest_run %}
+          <tr>
+            <td>{{ row.test.name }}</td>
+            <td>
+              {% if run and run.status == 'success' %}
+                <span class="badge text-bg-success">OK</span>
+              {% elif run and run.status == 'failed' %}
+                <span class="badge text-bg-danger">Failed</span>
+              {% else %}
+                <span class="badge text-bg-secondary">Ingen körning</span>
+              {% endif %}
+            </td>
+            <td>{{ row.test.interval_minutes }} min</td>
+            <td>
+              {% if row.unsupported %}
+                <span class="badge text-bg-warning text-dark">{{ row.unsupported|length }} saknas</span>
+              {% else %}
+                <span class="text-muted">Inga</span>
+              {% endif %}
+            </td>
+            <td class="d-flex gap-2">
+              <a href="{{ url_for('edit_test_case', test_case_id=row.test.id) }}" class="btn btn-sm btn-outline-warning">Editera</a>
+              <a href="{{ url_for('test_detail', test_case_id=row.test.id) }}" class="btn btn-sm btn-primary">Detaljer</a>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5">Inga checkar ännu.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

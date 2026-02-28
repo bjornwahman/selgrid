@@ -221,5 +221,46 @@ def test_global_error_handler_returns_500_page():
     assert "Något gick fel" in response
 
 
+def test_dashboard_overview_and_checks_page_show_latest_status():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+    client = selgrid_app.app.test_client()
+    register_and_login(client)
+
+    payload = build_side_payload()
+    client.post(
+        "/dashboard",
+        data={
+            "interval_minutes": "5",
+            "side_file": (io.BytesIO(json.dumps(payload).encode("utf-8")), "demo.side"),
+        },
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+
+    with selgrid_app.app.app_context():
+        case = selgrid_app.TestCase.query.first()
+        selgrid_app.db.session.add(
+            selgrid_app.TestRun(
+                test_case_id=case.id,
+                started_at=selgrid_app.datetime.utcnow(),
+                finished_at=selgrid_app.datetime.utcnow(),
+                status="failed",
+                total_duration_ms=123,
+            )
+        )
+        selgrid_app.db.session.commit()
+
+    dashboard_response = client.get("/dashboard")
+    assert dashboard_response.status_code == 200
+    assert "Överblick av checkar".encode("utf-8") in dashboard_response.data
+    assert b"Failed" in dashboard_response.data
+
+    checks_response = client.get("/checks")
+    assert checks_response.status_code == 200
+    assert b"Hantera checkar" in checks_response.data
+    assert b"Editera" in checks_response.data
+
+
 def test_log_file_exists_in_project_root():
     assert selgrid_app.LOG_FILE_PATH.exists()
