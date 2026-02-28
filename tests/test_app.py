@@ -143,6 +143,13 @@ def test_wait_alias_supported_and_notimplemented_becomes_warning():
     assert calls["condition"] is not None
 
 
+def test_assert_title_uses_target_when_value_is_empty():
+    class FakeDriver:
+        title = "Example Domain"
+
+    selgrid_app.perform_command(FakeDriver(), "assertTitle", "Example Domain", "")
+
+
 def test_api_auth_required_exists_for_backward_compatibility():
     @selgrid_app.api_auth_required
     def sample():
