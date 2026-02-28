@@ -573,3 +573,59 @@ def test_help_page_contains_sections_and_commands():
     assert 'Selenium-kommandon som stöds'.encode('utf-8') in response.data
     assert b'${USERNAME}' in response.data
     assert b'open | /login |' in response.data
+    assert b'By.XPATH=//button' in response.data
+    assert b'waitForElementClickable' in response.data
+
+
+def test_resolve_locator_supports_python_by_syntax():
+    by, selector = selgrid_app.resolve_locator("By.XPATH=//main//button")
+    assert by == selgrid_app.By.XPATH
+    assert selector == "//main//button"
+
+
+def test_new_commands_clear_and_visibility_assertions():
+    class FakeElement:
+        def __init__(self, displayed=True):
+            self.displayed = displayed
+            self.cleared = False
+
+        def clear(self):
+            self.cleared = True
+
+        def is_displayed(self):
+            return self.displayed
+
+    class FakeDriver:
+        def __init__(self):
+            self.elem = FakeElement(displayed=True)
+            self.hidden_elem = FakeElement(displayed=False)
+
+        def find_element(self, *_args):
+            return self.elem
+
+        def find_elements(self, *_args):
+            return [self.hidden_elem]
+
+    driver = FakeDriver()
+    selgrid_app.perform_command(driver, "clear", "id=email", "")
+    assert driver.elem.cleared is True
+
+    selgrid_app.perform_command(driver, "assertElementVisible", "id=email", "")
+    selgrid_app.perform_command(driver, "assertElementNotVisible", "css=.hidden", "")
+
+
+def test_wait_for_element_clickable_uses_expected_condition():
+    calls = {"condition": None}
+
+    class FakeWait:
+        def __init__(self, driver, timeout):
+            self.driver = driver
+            self.timeout = timeout
+
+        def until(self, condition):
+            calls["condition"] = condition
+            return True
+
+    selgrid_app.WebDriverWait = FakeWait
+    selgrid_app.perform_command(object(), "waitForElementClickable", "By.XPATH=//button", "4")
+    assert calls["condition"] is not None
