@@ -4,7 +4,7 @@ import os
 import secrets
 import time
 from datetime import datetime
-from functools import wraps
+from json import JSONDecodeError
 from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -567,7 +567,11 @@ def dashboard():
 @login_required
 def edit_test_case(test_case_id):
     test_case = TestCase.query.filter_by(id=test_case_id, owner_id=current_user.id).first_or_404()
-    payload, tests, _ = read_side_file(Path(test_case.file_path))
+    try:
+        payload, tests, _ = read_side_file(Path(test_case.file_path))
+    except (OSError, JSONDecodeError, ValueError):
+        flash("Kunde inte läsa .side-filen för checken")
+        return redirect(url_for("dashboard"))
 
     if request.method == "POST":
         form_action = request.form.get("action", "update_meta")
@@ -704,7 +708,11 @@ def test_detail(test_case_id):
         run.id: StepMetric.query.filter_by(test_run_id=run.id).order_by(StepMetric.step_index.asc()).all()
         for run in runs
     }
-    payload, _, _ = read_side_file(Path(test_case.file_path))
+    try:
+        payload, _, _ = read_side_file(Path(test_case.file_path))
+    except (OSError, JSONDecodeError, ValueError):
+        flash("Kunde inte läsa .side-filen för checken")
+        return redirect(url_for("dashboard"))
     unsupported = get_unsupported_commands(payload, test_case.selenium_test_id)
     total_runs = len(runs)
     success_runs = len([item for item in runs if item.status == "success"])

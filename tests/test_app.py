@@ -137,3 +137,30 @@ def test_api_auth_required_exists_for_backward_compatibility():
         return "ok"
 
     assert sample() == "ok"
+
+
+def test_invalid_side_file_gracefully_redirects_from_detail():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+    client = selgrid_app.app.test_client()
+    register_and_login(client)
+
+    payload = build_side_payload()
+    client.post(
+        "/dashboard",
+        data={
+            "interval_minutes": "5",
+            "side_file": (io.BytesIO(json.dumps(payload).encode("utf-8")), "demo.side"),
+        },
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+
+    with selgrid_app.app.app_context():
+        case = selgrid_app.TestCase.query.first()
+        case_id = case.id
+        Path(case.file_path).write_text("{ not json", encoding="utf-8")
+
+    response = client.get(f"/test/{case_id}", follow_redirects=True)
+    assert response.status_code == 200
+    assert "Kunde inte läsa .side-filen".encode("utf-8") in response.data
