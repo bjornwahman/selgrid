@@ -6,10 +6,11 @@ import secrets
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 from json import JSONDecodeError
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
+from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import (
@@ -54,6 +55,7 @@ app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
     "DATABASE_URL", f"sqlite:///{BASE_DIR / 'selgrid.db'}"
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["APP_TIMEZONE"] = os.getenv("APP_TIMEZONE", "Europe/Stockholm")
 
 LOG_FILE_PATH = BASE_DIR / "selgrid.log"
 APP_VERSION_FILE = BASE_DIR / "version.txt"
@@ -113,6 +115,33 @@ def configure_logging():
 
 configure_logging()
 app.logger.info("Selgrid started. Version file: %s", APP_VERSION_FILE)
+
+
+def get_app_timezone():
+    timezone_name = app.config.get("APP_TIMEZONE", "Europe/Stockholm")
+    try:
+        return ZoneInfo(timezone_name)
+    except Exception:
+        app.logger.warning("Invalid APP_TIMEZONE '%s', falling back to Europe/Stockholm", timezone_name)
+        return ZoneInfo("Europe/Stockholm")
+
+
+def utc_naive_to_local(dt_value: datetime | None):
+    if not dt_value:
+        return None
+    return dt_value.replace(tzinfo=timezone.utc).astimezone(get_app_timezone())
+
+
+def datetime_to_utc_iso(dt_value: datetime | None):
+    if not dt_value:
+        return None
+    return dt_value.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+@app.template_filter("format_local_datetime")
+def format_local_datetime(dt_value: datetime | None, fmt: str = "%Y-%m-%d %H:%M"):
+    local_dt = utc_naive_to_local(dt_value)
+    return local_dt.strftime(fmt) if local_dt else ""
 
 ALLOWED_EXTENSIONS = {"side"}
 SELENIUM_REMOTE_URL = SELENIUM_URLS["remote"]
@@ -548,8 +577,8 @@ def serialize_test_case(test_case: TestCase):
             "status": latest_status,
             "duration_ms": latest_duration,
             "error_message": latest_run.error_message if latest_run else None,
-            "started_at": latest_run.started_at.isoformat() if latest_run else None,
-            "finished_at": latest_run.finished_at.isoformat() if latest_run and latest_run.finished_at else None,
+            "started_at": datetime_to_utc_iso(latest_run.started_at) if latest_run else None,
+            "finished_at": datetime_to_utc_iso(latest_run.finished_at) if latest_run and latest_run.finished_at else None,
         },
     }
 
@@ -563,8 +592,8 @@ def serialize_test_run_with_metrics(test_run: TestRun):
     return {
         "id": test_run.id,
         "status": test_run.status,
-        "started_at": test_run.started_at.isoformat() if test_run.started_at else None,
-        "finished_at": test_run.finished_at.isoformat() if test_run.finished_at else None,
+        "started_at": datetime_to_utc_iso(test_run.started_at),
+        "finished_at": datetime_to_utc_iso(test_run.finished_at),
         "total_duration_ms": test_run.total_duration_ms,
         "error_message": test_run.error_message,
         "metrics": [
@@ -592,7 +621,7 @@ def serialize_latest_test_run_summary(test_run: TestRun | None):
         "id": test_run.id,
         "status": status,
         "total_duration_ms": test_run.total_duration_ms,
-        "timestamp": test_run.started_at.isoformat() if test_run.started_at else None,
+        "timestamp": datetime_to_utc_iso(test_run.started_at),
     }
 
 
@@ -1206,7 +1235,7 @@ def test_detail(test_case_id):
         metrics=metrics,
         secrets=Secret.query.filter_by(test_case_id=test_case.id).all(),
         unsupported_commands=unsupported,
-        chart_labels=[run.started_at.strftime("%Y-%m-%d %H:%M") for run in reversed(runs)],
+        chart_labels=[format_local_datetime(run.started_at) for run in reversed(runs)],
         chart_durations=[0 if run.status == "failed" else run.total_duration_ms for run in reversed(runs)],
         chart_statuses=[run.status for run in reversed(runs)],
         total_runs=total_runs,
