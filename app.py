@@ -787,13 +787,26 @@ def build_dashboard_rows(owner_id: int):
     tests = TestCase.query.filter_by(owner_id=owner_id).order_by(TestCase.id.desc()).all()
     for test_case in tests:
         latest_run = TestRun.query.filter_by(test_case_id=test_case.id).order_by(TestRun.started_at.desc()).first()
+        recent_runs = (
+            TestRun.query.filter_by(test_case_id=test_case.id)
+            .order_by(TestRun.started_at.desc())
+            .limit(8)
+            .all()
+        )
         unsupported = []
         try:
             payload, _, _ = read_side_file(Path(test_case.file_path))
             unsupported = get_unsupported_commands(payload, test_case.selenium_test_id)
         except Exception:
             unsupported = ["kunde inte läsa .side"]
-        rows.append({"test": test_case, "unsupported": unsupported, "latest_run": latest_run})
+        rows.append(
+            {
+                "test": test_case,
+                "unsupported": unsupported,
+                "latest_run": latest_run,
+                "recent_runs": list(reversed(recent_runs)),
+            }
+        )
     return rows
 
 
