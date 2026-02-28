@@ -1128,10 +1128,10 @@ def docu_openapi():
             "info": {"title": "Selgrid API", "version": "1.0.0"},
             "components": {
                 "securitySchemes": {
-                    "bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "API token"}
+                    "API Token": {"type": "http", "scheme": "bearer", "bearerFormat": "API token"}
                 }
             },
-            "security": [{"bearerAuth": []}],
+            "security": [{"API Token": []}],
             "paths": {
                 "/api/health": {"get": {"summary": "Healthcheck", "responses": {"200": {"description": "OK"}}}},
                 "/api/tests": {
