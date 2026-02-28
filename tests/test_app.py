@@ -62,6 +62,11 @@ def test_secret_replacement():
     assert out == "hello world"
 
 
+def test_runtime_variable_replacement():
+    out = selgrid_app.replace_runtime_variables("Hej ${name}", {"name": "Anna"})
+    assert out == "Hej Anna"
+
+
 def test_build_selenium_urls_uses_docker_service_names(monkeypatch):
     monkeypatch.setattr(selgrid_app, "is_running_in_docker", lambda: True)
     monkeypatch.delenv("SELENIUM_GRID_HOST", raising=False)
@@ -248,6 +253,35 @@ def test_assert_title_uses_target_when_value_is_empty():
         title = "Example Domain"
 
     selgrid_app.perform_command(FakeDriver(), "assertTitle", "Example Domain", "")
+
+
+def test_store_commands_save_values_to_variable_map():
+    variables = {}
+
+    class FakeElement:
+        text = "Rubrik"
+
+        def get_attribute(self, key):
+            if key == "value":
+                return "anna@example.com"
+            return ""
+
+    class FakeDriver:
+        title = "Dashboard"
+
+        def find_element(self, *_args):
+            return FakeElement()
+
+    driver = FakeDriver()
+    selgrid_app.perform_command(driver, "storeText", "css=h1", "headerText", variables_map=variables)
+    selgrid_app.perform_command(driver, "storeValue", "id=email", "emailValue", variables_map=variables)
+    selgrid_app.perform_command(driver, "storeTitle", "pageTitle", "", variables_map=variables)
+
+    assert variables == {
+        "headerText": "Rubrik",
+        "emailValue": "anna@example.com",
+        "pageTitle": "Dashboard",
+    }
 
 
 def test_api_auth_required_exists_for_backward_compatibility():
