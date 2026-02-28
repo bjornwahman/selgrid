@@ -53,6 +53,9 @@
         <a class="navbar-brand fw-semibold" href="{{ url_for('index') }}">Selgrid</a>
         <div>
           {% if current_user.is_authenticated %}
+            {% if current_user.username == 'admin' %}
+              <a class="btn btn-outline-warning btn-sm" href="{{ url_for('admin_page') }}">Admin</a>
+            {% endif %}
             <a class="btn btn-outline-light btn-sm" href="{{ url_for('dashboard') }}">Dashboard</a>
             <a class="btn btn-outline-warning btn-sm" href="{{ url_for('logout') }}">Logga ut</a>
           {% else %}

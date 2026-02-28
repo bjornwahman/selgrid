@@ -38,12 +38,7 @@ Grid startar som standard på `http://127.0.0.1:4444`.
 
 ## Starta webbappen
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python app.py
-```
+## Version och logg
 
 Öppna sedan `http://localhost:8080`.
 
