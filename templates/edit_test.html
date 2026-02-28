@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Redigera check</h2>
+
+{% if unsupported_commands %}
+  <div class="alert alert-warning">
+    <strong>Varning:</strong> Dessa kommandon stöds inte fullt ut just nu: {{ unsupported_commands|join(', ') }}
+  </div>
+{% endif %}
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5>Inställningar</h5>
+    <form method="post" class="row g-3">
+      <input type="hidden" name="action" value="update_meta">
+      <div class="col-md-8">
+        <label class="form-label">Namn</label>
+        <input class="form-control" name="name" value="{{ test_case.name }}" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Intervall (min)</label>
+        <input type="number" min="1" class="form-control" name="interval_minutes" value="{{ test_case.interval_minutes }}" required>
+      </div>
+      <div class="col-12">
+        <label class="form-label">Test i .side-fil</label>
+        <select class="form-select" name="selenium_test_id">
+          {% for test in selenium_tests %}
+            <option value="{{ test.id }}" {% if test.id == test_case.selenium_test_id %}selected{% endif %}>{{ test.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 form-check ms-2">
+        <input class="form-check-input" type="checkbox" name="active" id="active" {% if test_case.active %}checked{% endif %}>
+        <label class="form-check-label" for="active">Aktiv schemaläggning</label>
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-warning">Spara inställningar</button>
+        <a href="{{ url_for('test_detail', test_case_id=test_case.id) }}" class="btn btn-outline-secondary">Avbryt</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5>Snabbnotering i testflöde</h5>
+    <form method="post" class="row g-2">
+      <input type="hidden" name="action" value="add_note">
+      <div class="col-md-10">
+        <input class="form-control" name="note_text" placeholder="t.ex. nu startar vi, nu klickar vi här, nu avslutas test">
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-outline-warning w-100">Lägg till text</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5>.side JSON i tabellform</h5>
+    <form method="post">
+      <input type="hidden" name="action" value="update_side">
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead><tr><th>#</th><th>Kommando</th><th>Target</th><th>Value / Text</th></tr></thead>
+          <tbody>
+            {% for command in commands %}
+              <tr>
+                <td>{{ loop.index }}</td>
+                <td><input class="form-control" name="command[]" value="{{ command.command }}"></td>
+                <td><input class="form-control" name="target[]" value="{{ command.target }}"></td>
+                <td><input class="form-control" name="value[]" value="{{ command.value }}"></td>
+              </tr>
+            {% else %}
+              <tr><td colspan="4">Inga steg i testet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <button class="btn btn-warning">Spara tabell</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
