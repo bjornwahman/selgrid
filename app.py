@@ -880,6 +880,7 @@ def edit_test_case(test_case_id):
             request.form.get("interval_minutes", test_case.interval_minutes), test_case.interval_minutes
         )
         selenium_test_id = request.form.get("selenium_test_id", "").strip()
+        base_url = request.form.get("base_url", "").strip()
         active = request.form.get("active") == "on"
 
         if not name:
@@ -891,12 +892,22 @@ def edit_test_case(test_case_id):
             flash("Valt test finns inte i .side-filen")
             return redirect(url_for("edit_test_case", test_case_id=test_case.id))
 
+        if base_url and not base_url.startswith(("http://", "https://")):
+            flash("Bas-URL måste börja med http:// eller https://")
+            return redirect(url_for("edit_test_case", test_case_id=test_case.id))
+
         test_case.name = name
         test_case.interval_minutes = interval_minutes
         if selenium_test_id:
             test_case.selenium_test_id = selenium_test_id
         test_case.active = active
         db.session.commit()
+
+        if base_url:
+            payload["urls"] = [base_url]
+        else:
+            payload["urls"] = []
+        write_side_file(Path(test_case.file_path), payload)
 
         if test_case.active:
             schedule_test_case(test_case)
@@ -913,11 +924,13 @@ def edit_test_case(test_case_id):
     selected_test = next((item for item in tests if item.get("id") == test_case.selenium_test_id), None)
     commands = selected_test.get("commands", []) if selected_test else []
     unsupported = get_unsupported_commands(payload, test_case.selenium_test_id)
+    base_url = payload.get("urls", [""])[0] if payload.get("urls") else ""
     return render_template(
         "edit_test.html",
         test_case=test_case,
         selenium_tests=tests,
         commands=commands,
+        base_url=base_url,
         command_options=SUPPORTED_COMMAND_OPTIONS,
         unsupported_commands=unsupported,
     )

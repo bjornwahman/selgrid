@@ -95,6 +95,7 @@ def test_edit_table_and_add_note():
     edit_view = client.get(f"/test/{case_id}/edit", follow_redirects=True)
     assert b"waitForElement" in edit_view.data
     assert b"L\xc3\xa4gg till steg" in edit_view.data
+    assert b"Bas-URL" in edit_view.data
 
     response = client.post(
         f"/test/{case_id}/edit",
@@ -120,6 +121,60 @@ def test_edit_table_and_add_note():
     commands = data["tests"][0]["commands"]
     assert commands[-1]["command"] == "comment"
     assert commands[-1]["value"] == "nu startar vi"
+
+
+def test_edit_meta_updates_base_url_and_validates_scheme():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+    client = selgrid_app.app.test_client()
+    register_and_login(client)
+
+    payload = build_side_payload()
+    client.post(
+        "/checks",
+        data={
+            "interval_minutes": "5",
+            "side_file": (io.BytesIO(json.dumps(payload).encode("utf-8")), "demo.side"),
+        },
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+
+    with selgrid_app.app.app_context():
+        case = selgrid_app.TestCase.query.first()
+        case_id = case.id
+        file_path = Path(case.file_path)
+
+    invalid_response = client.post(
+        f"/test/{case_id}/edit",
+        data={
+            "action": "update_meta",
+            "name": "Example.com",
+            "interval_minutes": "5",
+            "selenium_test_id": "t-1",
+            "base_url": "example.com",
+        },
+        follow_redirects=True,
+    )
+    assert invalid_response.status_code == 200
+    assert "Bas-URL måste börja med http:// eller https://".encode("utf-8") in invalid_response.data
+
+    valid_response = client.post(
+        f"/test/{case_id}/edit",
+        data={
+            "action": "update_meta",
+            "name": "Example.com",
+            "interval_minutes": "5",
+            "selenium_test_id": "t-1",
+            "base_url": "https://new.example.com",
+            "active": "on",
+        },
+        follow_redirects=True,
+    )
+    assert valid_response.status_code == 200
+
+    data = json.loads(file_path.read_text(encoding="utf-8"))
+    assert data["urls"] == ["https://new.example.com"]
 
 
 def test_wait_alias_supported_and_notimplemented_becomes_warning():
