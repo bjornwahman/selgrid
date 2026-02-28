@@ -537,10 +537,10 @@ def run_test_case(test_case_id: int):
         db.session.add(run)
         db.session.commit()
 
-        start = time.perf_counter()
         status = "success"
         error_message = None
         driver = None
+        test_duration_ms = 0
 
         try:
             payload, tests, urls = read_side_file(Path(test_case.file_path))
@@ -581,6 +581,7 @@ def run_test_case(test_case_id: int):
                     metric.error_message = str(exc)
                     db.session.add(metric)
                     metric.duration_ms = int((time.perf_counter() - step_start) * 1000)
+                    test_duration_ms += metric.duration_ms
                     db.session.commit()
                     continue
                 except Exception as exc:
@@ -590,10 +591,12 @@ def run_test_case(test_case_id: int):
                     error_message = str(exc)
                     db.session.add(metric)
                     metric.duration_ms = int((time.perf_counter() - step_start) * 1000)
+                    test_duration_ms += metric.duration_ms
                     db.session.commit()
                     break
 
                 metric.duration_ms = int((time.perf_counter() - step_start) * 1000)
+                test_duration_ms += metric.duration_ms
                 db.session.add(metric)
                 db.session.commit()
 
@@ -607,9 +610,7 @@ def run_test_case(test_case_id: int):
         run.status = status
         run.error_message = error_message
         run.finished_at = datetime.utcnow()
-        run.total_duration_ms = int((time.perf_counter() - start) * 1000)
-        if run.status == "failed":
-            run.total_duration_ms = 0
+        run.total_duration_ms = test_duration_ms
         db.session.commit()
 
 
