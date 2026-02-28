@@ -487,8 +487,9 @@ def perform_command(driver, command, target, value):
         delay_ms = int(target or value or "0")
         time.sleep(max(delay_ms, 0) / 1000)
     elif command == "assertTitle":
-        if driver.title != value:
-            raise AssertionError(f"Expected title '{value}', got '{driver.title}'")
+        expected_title = value or target
+        if driver.title != expected_title:
+            raise AssertionError(f"Expected title '{expected_title}', got '{driver.title}'")
     elif command == "assertText":
         by, selector = resolve_locator(target)
         actual = driver.find_element(by, selector).text
