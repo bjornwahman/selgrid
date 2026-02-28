@@ -11,8 +11,16 @@ def reset_db():
         selgrid_app.db.create_all()
 
 
-def register_and_login(client):
-    client.post("/register", data={"username": "anna", "password": "hemligt"}, follow_redirects=True)
+def ensure_admin_user():
+    with selgrid_app.app.app_context():
+        admin = selgrid_app.User.query.filter_by(username=selgrid_app.DEFAULT_ADMIN_USERNAME).first()
+        if not admin:
+            admin = selgrid_app.User(
+                username=selgrid_app.DEFAULT_ADMIN_USERNAME,
+                password_hash=selgrid_app.generate_password_hash(selgrid_app.DEFAULT_ADMIN_PASSWORD),
+            )
+            selgrid_app.db.session.add(admin)
+            selgrid_app.db.session.commit()
 
 
 def build_side_payload():
