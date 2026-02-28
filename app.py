@@ -1,11 +1,13 @@
 import hashlib
 import json
+import logging
 import os
 import secrets
 import time
 from datetime import datetime
 from json import JSONDecodeError
 from pathlib import Path
+from logging.handlers import RotatingFileHandler
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import (
@@ -35,6 +37,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.support.ui import WebDriverWait
+from werkzeug.exceptions import HTTPException
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
@@ -48,6 +51,31 @@ app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
     "DATABASE_URL", f"sqlite:///{BASE_DIR / 'selgrid.db'}"
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+LOG_FILE_PATH = BASE_DIR / "selgrid.log"
+APP_VERSION_FILE = BASE_DIR / "version.txt"
+
+
+def configure_logging():
+    LOG_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    file_handler_exists = any(
+        isinstance(handler, logging.FileHandler) and getattr(handler, "baseFilename", "") == str(LOG_FILE_PATH)
+        for handler in app.logger.handlers
+    )
+    if file_handler_exists:
+        return
+
+    handler = RotatingFileHandler(LOG_FILE_PATH, maxBytes=2_000_000, backupCount=3, encoding="utf-8")
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    )
+    handler.setLevel(logging.INFO)
+    app.logger.setLevel(logging.INFO)
+    app.logger.addHandler(handler)
+
+
+configure_logging()
+app.logger.info("Selgrid started. Version file: %s", APP_VERSION_FILE)
 
 ALLOWED_EXTENSIONS = {"side"}
 SELENIUM_REMOTE_URL = os.getenv("SELENIUM_REMOTE_URL", "http://127.0.0.1:4444/wd/hub")
@@ -830,6 +858,15 @@ def api_run_now(test_case_id):
 @login_required
 def get_upload(filename):
     return send_from_directory(UPLOAD_DIR, filename)
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(error):
+    if isinstance(error, HTTPException):
+        return error
+
+    app.logger.exception("Unhandled application error", exc_info=error)
+    return render_template("500.html"), 500
 
 
 with app.app_context():

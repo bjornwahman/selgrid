@@ -44,6 +44,12 @@ curl -H "Authorization: Bearer <token>" http://127.0.0.1:8080/api/tests
 
 Öppna sedan `http://localhost:8080`.
 
+
+## Version och logg
+
+- `version.txt` i projektroten innehåller aktuell appversion.
+- Fel loggas till `selgrid.log` i projektroten (roterande loggfil).
+
 ## Konfiguration
 
 - `SELENIUM_REMOTE_URL` (default: `http://127.0.0.1:4444/wd/hub`)

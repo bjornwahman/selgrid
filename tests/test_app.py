@@ -164,3 +164,10 @@ def test_invalid_side_file_gracefully_redirects_from_detail():
     response = client.get(f"/test/{case_id}", follow_redirects=True)
     assert response.status_code == 200
     assert "Kunde inte läsa .side-filen".encode("utf-8") in response.data
+
+
+def test_global_error_handler_returns_500_page():
+    with selgrid_app.app.test_request_context("/"):
+        response, status_code = selgrid_app.handle_unexpected_error(RuntimeError("boom"))
+    assert status_code == 500
+    assert "Något gick fel" in response
