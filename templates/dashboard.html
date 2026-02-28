@@ -12,25 +12,27 @@
     {% set is_ok = run and run.status == 'success' %}
     {% set is_failed = run and run.status == 'failed' %}
     <div class="col-md-6 col-lg-4">
-      <div class="check-tile {% if is_ok %}ok{% elif is_failed %}failed{% else %}unknown{% endif %}">
-        <div class="d-flex justify-content-between align-items-start gap-2">
-          <strong>{{ row.test.name }}</strong>
-          {% if is_ok %}
-            <span class="badge text-bg-success">OK</span>
-          {% elif is_failed %}
-            <span class="badge text-bg-danger">Failed</span>
-          {% else %}
-            <span class="badge text-bg-secondary">Ingen körning</span>
-          {% endif %}
+      <a href="{{ url_for('test_detail', test_case_id=row.test.id) }}" class="check-link">
+        <div class="check-tile {% if is_ok %}ok{% elif is_failed %}failed{% else %}unknown{% endif %}">
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <strong>{{ row.test.name }}</strong>
+            {% if is_ok %}
+              <span class="badge text-bg-success">OK</span>
+            {% elif is_failed %}
+              <span class="badge text-bg-danger">Failed</span>
+            {% else %}
+              <span class="badge text-bg-secondary">Ingen körning</span>
+            {% endif %}
+          </div>
+          <div class="small mt-2 text-muted">
+            {% if run %}
+              Senaste körning: {{ run.started_at.strftime('%Y-%m-%d %H:%M') }}
+            {% else %}
+              Ingen historik ännu
+            {% endif %}
+          </div>
         </div>
-        <div class="small mt-2 text-muted">
-          {% if run %}
-            Senaste körning: {{ run.started_at.strftime('%Y-%m-%d %H:%M') }}
-          {% else %}
-            Ingen historik ännu
-          {% endif %}
-        </div>
-      </div>
+      </a>
     </div>
   {% else %}
     <div class="col-12">

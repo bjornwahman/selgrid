@@ -42,7 +42,7 @@
 </div>
 
 <h4>Körhistorik</h4>
-{% for run in runs %}
+{% for run in runs[:1] %}
   <div class="card mb-3">
     <div class="card-header d-flex justify-content-between">
       <span>{{ run.started_at }} - {% if run.status == 'failed' %}<span class='badge text-bg-danger'>FAILED</span>{% elif run.status == 'success' %}<span class='badge text-bg-success'>SUCCESS</span>{% else %}<span class='badge text-bg-secondary'>{{ run.status }}</span>{% endif %}</span>
