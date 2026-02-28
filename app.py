@@ -466,6 +466,35 @@ def serialize_test_case(test_case: TestCase):
     }
 
 
+def serialize_test_run_with_metrics(test_run: TestRun):
+    metrics = (
+        StepMetric.query.filter_by(test_run_id=test_run.id)
+        .order_by(StepMetric.step_index.asc())
+        .all()
+    )
+    return {
+        "id": test_run.id,
+        "status": test_run.status,
+        "started_at": test_run.started_at.isoformat() if test_run.started_at else None,
+        "finished_at": test_run.finished_at.isoformat() if test_run.finished_at else None,
+        "total_duration_ms": test_run.total_duration_ms,
+        "error_message": test_run.error_message,
+        "metrics": [
+            {
+                "id": metric.id,
+                "step_index": metric.step_index,
+                "command": metric.command,
+                "target": metric.target,
+                "value": metric.value,
+                "duration_ms": metric.duration_ms,
+                "status": metric.status,
+                "error_message": metric.error_message,
+            }
+            for metric in metrics
+        ],
+    }
+
+
 def perform_command(driver, command, target, value):
     if command in {"comment", "echo", "note"}:
         return
@@ -1090,6 +1119,15 @@ def docu_openapi():
                         "responses": {"200": {"description": "Started"}, "404": {"description": "Not found"}},
                     }
                 },
+                "/api/tests/{id}/results": {
+                    "get": {
+                        "summary": "Lista körresultat och stegmätvärden för en check",
+                        "parameters": [
+                            {"name": "id", "in": "path", "required": True, "schema": {"type": "integer"}}
+                        ],
+                        "responses": {"200": {"description": "Lista med körningar"}, "404": {"description": "Not found"}},
+                    }
+                },
             },
         }
     )
@@ -1123,6 +1161,27 @@ def api_run_now(test_case_id):
         return jsonify({"error": "Test not found"}), 404
     run_test_case(test_case.id)
     return jsonify({"message": "Run started", "test_id": test_case.id})
+
+
+@app.route("/api/tests/<int:test_case_id>/results", methods=["GET"])
+@api_auth_required
+def api_test_results(test_case_id):
+    test_case = TestCase.query.filter_by(id=test_case_id, owner_id=request.api_user.id).first()
+    if not test_case:
+        return jsonify({"error": "Test not found"}), 404
+
+    runs = (
+        TestRun.query.filter_by(test_case_id=test_case.id)
+        .order_by(TestRun.started_at.desc())
+        .all()
+    )
+    return jsonify(
+        {
+            "test_id": test_case.id,
+            "test_name": test_case.name,
+            "results": [serialize_test_run_with_metrics(run) for run in runs],
+        }
+    )
 
 
 @app.route("/uploads/<path:filename>")

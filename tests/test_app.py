@@ -42,6 +42,21 @@ def build_side_payload():
     }
 
 
+def create_api_token_for_user(user_id, name="apitoken"):
+    raw_token = "token-123"
+    token_hash = selgrid_app.hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    selgrid_app.db.session.add(
+        selgrid_app.ApiToken(
+            owner_id=user_id,
+            name=name,
+            token_hash=token_hash,
+            token_prefix=raw_token[:8],
+        )
+    )
+    selgrid_app.db.session.commit()
+    return raw_token
+
+
 def test_secret_replacement():
     out = selgrid_app.replace_secret("hello ${USER}", {"USER": "world"})
     assert out == "hello world"
@@ -411,3 +426,101 @@ def test_docu_and_status_pages_available_when_logged_in():
     status_response = client.get("/status")
     assert status_response.status_code == 200
     assert b"Selenium Grid" in status_response.data
+
+
+def test_api_results_returns_runs_with_metrics():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+
+    with selgrid_app.app.app_context():
+        user = selgrid_app.User(
+            username="api-user",
+            password_hash=selgrid_app.generate_password_hash("secret"),
+        )
+        selgrid_app.db.session.add(user)
+        selgrid_app.db.session.commit()
+
+        case = selgrid_app.TestCase(
+            owner_id=user.id,
+            name="api check",
+            file_path="/tmp/demo.side",
+            interval_minutes=5,
+            selenium_test_id="t-1",
+            active=True,
+        )
+        selgrid_app.db.session.add(case)
+        selgrid_app.db.session.commit()
+        case_id = case.id
+
+        run = selgrid_app.TestRun(
+            test_case_id=case.id,
+            started_at=selgrid_app.datetime.utcnow(),
+            finished_at=selgrid_app.datetime.utcnow(),
+            status="success",
+            total_duration_ms=321,
+            error_message=None,
+        )
+        selgrid_app.db.session.add(run)
+        selgrid_app.db.session.commit()
+
+        selgrid_app.db.session.add(
+            selgrid_app.StepMetric(
+                test_run_id=run.id,
+                step_index=1,
+                command="open",
+                target="/",
+                value="",
+                duration_ms=111,
+                status="success",
+                error_message=None,
+            )
+        )
+        selgrid_app.db.session.commit()
+
+        token = create_api_token_for_user(user.id)
+
+    client = selgrid_app.app.test_client()
+    response = client.get(
+        f"/api/tests/{case_id}/results",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["test_id"] == case_id
+    assert len(payload["results"]) == 1
+    assert payload["results"][0]["metrics"][0]["command"] == "open"
+
+
+def test_api_results_returns_404_for_missing_or_foreign_test():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+
+    with selgrid_app.app.app_context():
+        owner = selgrid_app.User(username="owner", password_hash="x")
+        stranger = selgrid_app.User(username="stranger", password_hash="y")
+        selgrid_app.db.session.add_all([owner, stranger])
+        selgrid_app.db.session.commit()
+
+        case = selgrid_app.TestCase(
+            owner_id=owner.id,
+            name="hidden",
+            file_path="/tmp/demo.side",
+            interval_minutes=5,
+            selenium_test_id="t-1",
+            active=True,
+        )
+        selgrid_app.db.session.add(case)
+        selgrid_app.db.session.commit()
+        case_id = case.id
+
+        token = create_api_token_for_user(stranger.id, name="foreign")
+
+    client = selgrid_app.app.test_client()
+    response = client.get(
+        f"/api/tests/{case_id}/results",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "Test not found"
