@@ -57,14 +57,58 @@
     color: #111827;
     border-color: #ff8a00;
   }
+  #swagger-ui .dialog-ux .modal-ux {
+    background: #111827;
+    border: 1px solid #374151;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45);
+    color: #f9fafb;
+  }
+  #swagger-ui .dialog-ux .modal-ux-header,
+  #swagger-ui .dialog-ux .modal-ux-content {
+    background: #111827;
+    color: #f9fafb;
+    border-color: #374151;
+  }
+  #swagger-ui .dialog-ux .modal-ux-header h3,
+  #swagger-ui .dialog-ux .auth-container,
+  #swagger-ui .dialog-ux .auth-container p,
+  #swagger-ui .dialog-ux .auth-container label,
+  #swagger-ui .dialog-ux .auth-container .scopes h2,
+  #swagger-ui .dialog-ux .auth-container .scope-def {
+    color: #f3f4f6 !important;
+  }
+  #swagger-ui .dialog-ux .auth-container h4 {
+    color: transparent !important;
+  }
+  #swagger-ui .dialog-ux .auth-container h4 code {
+    color: #f59e0b !important;
+    background: transparent;
+    font-size: 1rem;
+    padding: 0;
+  }
+  #swagger-ui .dialog-ux .auth-btn-wrapper .btn,
+  #swagger-ui .dialog-ux .btn.modal-btn {
+    background: #1f2937;
+    color: #f9fafb;
+    border: 1px solid #4b5563;
+  }
+  #swagger-ui .dialog-ux .btn.modal-btn.auth {
+    background: #ff8a00;
+    color: #111827;
+    border-color: #ff8a00;
+  }
+  #swagger-ui .dialog-ux .modal-ux-header .close-modal {
+    color: #f9fafb;
+  }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
 <script>
+  window.localStorage.removeItem("authorized");
   window.ui = SwaggerUIBundle({
     url: "{{ url_for('docu_openapi') }}",
     dom_id: '#swagger-ui',
     deepLinking: true,
-    persistAuthorization: true,
+    persistAuthorization: false,
   });
 </script>
 {% endblock %}
