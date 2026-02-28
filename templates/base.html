@@ -29,6 +29,11 @@
         align-items: center;
         gap: 0.5rem;
       }
+      .selgrid-brand-wrap {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+      }
       .selgrid-logo {
         width: 32px;
         height: 32px;
@@ -135,17 +140,27 @@
   <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 border-bottom border-warning-subtle selgrid-topbar">
       <div class="container">
-        <a class="navbar-brand fw-semibold selgrid-brand" href="{{ url_for('index') }}">
-          <svg class="selgrid-logo" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <path d="M4 14C10 8 18 8 24 14C30 20 38 20 44 14" stroke="#ff8a00" stroke-width="2.5" stroke-linecap="round"/>
-            <path d="M4 24C10 18 18 18 24 24C30 30 38 30 44 24" stroke="#ffb15c" stroke-width="2.5" stroke-linecap="round"/>
-            <path d="M4 34C10 28 18 28 24 34C30 40 38 40 44 34" stroke="#ffd29c" stroke-width="2.5" stroke-linecap="round"/>
-            <circle cx="12" cy="18" r="2" fill="#ff8a00"/>
-            <circle cx="24" cy="24" r="2" fill="#ffb15c"/>
-            <circle cx="36" cy="30" r="2" fill="#ffd29c"/>
-          </svg>
-          Selgrid
-        </a>
+        <div class="selgrid-brand-wrap">
+          <a class="navbar-brand fw-semibold selgrid-brand" href="{{ url_for('index') }}">
+            <svg class="selgrid-logo" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M4 14C10 8 18 8 24 14C30 20 38 20 44 14" stroke="#ff8a00" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M4 24C10 18 18 18 24 24C30 30 38 30 44 24" stroke="#ffb15c" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M4 34C10 28 18 28 24 34C30 40 38 40 44 34" stroke="#ffd29c" stroke-width="2.5" stroke-linecap="round"/>
+              <circle cx="12" cy="18" r="2" fill="#ff8a00"/>
+              <circle cx="24" cy="24" r="2" fill="#ffb15c"/>
+              <circle cx="36" cy="30" r="2" fill="#ffd29c"/>
+            </svg>
+            Selgrid
+          </a>
+          {% if topbar_health %}
+            <span class="top-status-pill {{ 'up' if topbar_health.driver.ok else 'down' }}">
+              driver: {{ 'UP' if topbar_health.driver.ok else 'DOWN' }}
+            </span>
+            <span class="top-status-pill {{ 'up' if topbar_health.executioner.ok else 'down' }}">
+              executioner: {{ 'UP' if topbar_health.executioner.ok else 'DOWN' }}
+            </span>
+          {% endif %}
+        </div>
         <div>
           {% if current_user.is_authenticated %}
             <a class="btn btn-outline-warning btn-sm" href="{{ url_for('dashboard') }}">Dashboard</a>
@@ -156,14 +171,6 @@
               <a class="btn btn-outline-warning btn-sm" href="{{ url_for('admin_page') }}">Admin</a>
             {% endif %}
             <a class="btn btn-outline-warning btn-sm" href="{{ url_for('logout') }}">Logga ut</a>
-            {% if topbar_health %}
-              <span class="top-status-pill {{ 'up' if topbar_health.driver.ok else 'down' }}">
-                Driver (Chrome Selenium): {{ 'UP' if topbar_health.driver.ok else 'DOWN' }}
-              </span>
-              <span class="top-status-pill {{ 'up' if topbar_health.executioner.ok else 'down' }}">
-                Executioner (Selenium Grid): {{ 'UP' if topbar_health.executioner.ok else 'DOWN' }}
-              </span>
-            {% endif %}
             <span class="text-light small ms-2">Inloggad som {{ current_user.username }}</span>
           {% else %}
             <a class="btn btn-outline-warning btn-sm" href="{{ url_for('help_page') }}">Hjälp</a>
