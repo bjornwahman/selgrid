@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700">
+  <rect width="1200" height="700" fill="#121212"/>
+  <rect x="0" y="0" width="1200" height="72" fill="#1f1f1f"/>
+  <text x="40" y="45" font-family="Arial, sans-serif" font-size="32" fill="#ff8a00">Selgrid - Docu</text>
+  <rect x="80" y="120" width="1040" height="520" rx="12" fill="#111827" stroke="#374151"/>
+  <text x="120" y="190" font-family="Arial, sans-serif" font-size="40" fill="#f9fafb">API-dokumentation</text>
+  <rect x="120" y="230" width="980" height="70" rx="8" fill="#0f172a" stroke="#4b5563"/>
+  <text x="150" y="275" font-family="monospace" font-size="24" fill="#f3f4f6">GET /api/tests</text>
+  <rect x="120" y="330" width="980" height="70" rx="8" fill="#0f172a" stroke="#4b5563"/>
+  <text x="150" y="375" font-family="monospace" font-size="24" fill="#f3f4f6">POST /api/tests/{id}/run</text>
+  <text x="120" y="450" font-family="Arial, sans-serif" font-size="24" fill="#b3b3b3">Exempelbild av dokumentationsvyn.</text>
+</svg>

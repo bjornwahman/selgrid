@@ -560,3 +560,16 @@ def test_api_results_returns_404_for_missing_or_foreign_test():
 
     assert response.status_code == 404
     assert response.get_json()["error"] == "Test not found"
+
+
+def test_help_page_contains_sections_and_commands():
+    selgrid_app.app.config.update(TESTING=True)
+    client = selgrid_app.app.test_client()
+
+    response = client.get('/help')
+
+    assert response.status_code == 200
+    assert 'Hjälp'.encode('utf-8') in response.data
+    assert 'Selenium-kommandon som stöds'.encode('utf-8') in response.data
+    assert b'${USERNAME}' in response.data
+    assert b'open | /login |' in response.data
