@@ -150,6 +150,12 @@
           {% if current_user.is_authenticated %}
             <a class="btn btn-outline-warning btn-sm" href="{{ url_for('dashboard') }}">Dashboard</a>
             <a class="btn btn-outline-warning btn-sm" href="{{ url_for('checks_page') }}">Checks</a>
+            <a class="btn btn-outline-warning btn-sm" href="{{ url_for('docu_page') }}">Docu</a>
+            <a class="btn btn-outline-warning btn-sm" href="{{ url_for('help_page') }}">Hjälp</a>
+            {% if current_user.username == 'admin' %}
+              <a class="btn btn-outline-warning btn-sm" href="{{ url_for('admin_page') }}">Admin</a>
+            {% endif %}
+            <a class="btn btn-outline-warning btn-sm" href="{{ url_for('logout') }}">Logga ut</a>
             {% if topbar_health %}
               <span class="top-status-pill {{ 'up' if topbar_health.driver.ok else 'down' }}">
                 Driver (Chrome Selenium): {{ 'UP' if topbar_health.driver.ok else 'DOWN' }}
@@ -158,12 +164,6 @@
                 Executioner (Selenium Grid): {{ 'UP' if topbar_health.executioner.ok else 'DOWN' }}
               </span>
             {% endif %}
-            <a class="btn btn-outline-warning btn-sm" href="{{ url_for('docu_page') }}">Docu</a>
-            <a class="btn btn-outline-warning btn-sm" href="{{ url_for('help_page') }}">Hjälp</a>
-            {% if current_user.username == 'admin' %}
-              <a class="btn btn-outline-warning btn-sm" href="{{ url_for('admin_page') }}">Admin</a>
-            {% endif %}
-            <a class="btn btn-outline-warning btn-sm" href="{{ url_for('logout') }}">Logga ut</a>
             <span class="text-light small ms-2">Inloggad som {{ current_user.username }}</span>
           {% else %}
             <a class="btn btn-outline-warning btn-sm" href="{{ url_for('help_page') }}">Hjälp</a>
