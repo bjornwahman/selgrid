@@ -58,7 +58,7 @@ def test_upload_via_file_and_raw_json():
         "interval_minutes": "5",
         "side_file": (io.BytesIO(json.dumps(payload).encode("utf-8")), "demo.side"),
     }
-    response = client.post("/dashboard", data=file_data, content_type="multipart/form-data", follow_redirects=True)
+    response = client.post("/checks", data=file_data, content_type="multipart/form-data", follow_redirects=True)
     assert response.status_code == 200
     assert b"mitt test" in response.data
 
@@ -66,7 +66,7 @@ def test_upload_via_file_and_raw_json():
         "interval_minutes": "3",
         "side_raw": json.dumps(payload),
     }
-    raw_response = client.post("/dashboard", data=raw_data, follow_redirects=True)
+    raw_response = client.post("/checks", data=raw_data, follow_redirects=True)
     assert raw_response.status_code == 200
 
 
@@ -78,7 +78,7 @@ def test_edit_table_and_add_note():
 
     payload = build_side_payload()
     client.post(
-        "/dashboard",
+        "/checks",
         data={
             "interval_minutes": "5",
             "side_file": (io.BytesIO(json.dumps(payload).encode("utf-8")), "demo.side"),
@@ -195,7 +195,7 @@ def test_invalid_side_file_gracefully_redirects_from_detail():
 
     payload = build_side_payload()
     client.post(
-        "/dashboard",
+        "/checks",
         data={
             "interval_minutes": "5",
             "side_file": (io.BytesIO(json.dumps(payload).encode("utf-8")), "demo.side"),
@@ -229,7 +229,7 @@ def test_dashboard_overview_and_checks_page_show_latest_status():
 
     payload = build_side_payload()
     client.post(
-        "/dashboard",
+        "/checks",
         data={
             "interval_minutes": "5",
             "side_file": (io.BytesIO(json.dumps(payload).encode("utf-8")), "demo.side"),
@@ -264,3 +264,58 @@ def test_dashboard_overview_and_checks_page_show_latest_status():
 
 def test_log_file_exists_in_project_root():
     assert selgrid_app.LOG_FILE_PATH.exists()
+
+def test_admin_page_handles_users_and_tokens():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+    client = selgrid_app.app.test_client()
+
+    with selgrid_app.app.app_context():
+        selgrid_app.db.session.add(
+            selgrid_app.User(
+                username="admin",
+                password_hash=selgrid_app.generate_password_hash("admin"),
+            )
+        )
+        selgrid_app.db.session.commit()
+
+    client.post("/login", data={"username": "admin", "password": "admin"}, follow_redirects=True)
+
+    create_user = client.post(
+        "/admin",
+        data={"action": "create_user", "username": "kalle", "password": "hemligt"},
+        follow_redirects=True,
+    )
+    assert create_user.status_code == 200
+    assert "Användare skapad".encode("utf-8") in create_user.data
+
+    with selgrid_app.app.app_context():
+        kalle = selgrid_app.User.query.filter_by(username="kalle").first()
+
+    token_response = client.post(
+        "/admin",
+        data={"action": "create_token", "owner_id": str(kalle.id), "name": "api"},
+        follow_redirects=True,
+    )
+    assert token_response.status_code == 200
+    assert "Ny token".encode("utf-8") in token_response.data
+
+
+def test_docu_and_status_pages_available_when_logged_in():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+    client = selgrid_app.app.test_client()
+    register_and_login(client)
+
+    docu_response = client.get("/docu")
+    assert docu_response.status_code == 200
+    assert b"Swagger UI" in docu_response.data
+
+    openapi_response = client.get("/docu/openapi.json")
+    assert openapi_response.status_code == 200
+    assert openapi_response.is_json
+
+    selgrid_app.check_service_health = lambda _url: {"ok": True, "url": _url, "details": "ok"}
+    status_response = client.get("/status")
+    assert status_response.status_code == 200
+    assert b"Selenium Grid" in status_response.data

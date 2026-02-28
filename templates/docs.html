@@ -3,7 +3,7 @@
 <div class="card">
   <div class="card-body">
     <h2 class="h4">API-dokumentation</h2>
-    <p class="muted">Swagger UI laddas med OpenAPI-definitionen från <code>/docs/openapi.json</code>.</p>
+    <p class="muted">Swagger UI laddas med OpenAPI-definitionen från <code>/docu/openapi.json</code>.</p>
     <div id="swagger-ui"></div>
   </div>
 </div>
@@ -61,7 +61,7 @@
 <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
 <script>
   window.ui = SwaggerUIBundle({
-    url: "{{ url_for('docs_openapi') }}",
+    url: "{{ url_for('docu_openapi') }}",
     dom_id: '#swagger-ui',
     deepLinking: true,
     persistAuthorization: true,

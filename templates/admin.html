@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Admin · API tokens</h2>
-<p class="muted">Skapa bearer tokens för integrationer mot API:et.</p>
+<h2>Admin</h2>
+<p class="text-muted">Hantera användare och API-tokens.</p>
 
 {% if created_token %}
   <div class="alert alert-warning">
@@ -12,12 +12,79 @@
 
 <div class="card mb-4">
   <div class="card-body">
+    <h5>Lägg till användare</h5>
     <form method="post" class="row g-3">
-      <div class="col-md-9">
+      <input type="hidden" name="action" value="create_user">
+      <div class="col-md-5">
+        <label class="form-label">Användarnamn</label>
+        <input class="form-control" name="username" required>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label">Lösenord</label>
+        <input class="form-control" type="password" name="password" required>
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        <button class="btn btn-warning w-100">Skapa</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5>Användare</h5>
+    <div class="table-responsive">
+      <table class="table table-striped align-middle mb-0">
+        <thead><tr><th>Användare</th><th>Nytt lösenord (valfritt)</th><th>Åtgärder</th></tr></thead>
+        <tbody>
+        {% for user in users %}
+          <tr>
+            <td>
+              <form method="post" class="d-flex gap-2">
+                <input type="hidden" name="action" value="update_user">
+                <input type="hidden" name="user_id" value="{{ user.id }}">
+                <input class="form-control" name="username" value="{{ user.username }}" required>
+            </td>
+            <td><input class="form-control" type="password" name="password" placeholder="Lämna tomt för oförändrat"></td>
+            <td class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-warning">Spara</button>
+              </form>
+              {% if user.username != 'admin' %}
+                <form method="post" onsubmit="return confirm('Radera användare och all tillhörande data?');">
+                  <input type="hidden" name="action" value="delete_user">
+                  <input type="hidden" name="user_id" value="{{ user.id }}">
+                  <button class="btn btn-sm btn-outline-danger">Radera</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="3" class="text-muted">Inga användare ännu.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5>Skapa token</h5>
+    <form method="post" class="row g-3">
+      <input type="hidden" name="action" value="create_token">
+      <div class="col-md-4">
+        <label class="form-label">Ägare</label>
+        <select class="form-select" name="owner_id" required>
+          {% for user in users %}
+            <option value="{{ user.id }}">{{ user.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
         <label class="form-label">Token-namn</label>
         <input class="form-control" name="name" placeholder="Ex: Grafana integration" required>
       </div>
-      <div class="col-md-3 d-flex align-items-end">
+      <div class="col-md-2 d-flex align-items-end">
         <button class="btn btn-warning w-100">Skapa token</button>
       </div>
     </form>
@@ -28,22 +95,25 @@
   <div class="card-body">
     <h5>Aktiva tokens</h5>
     <table class="table table-striped align-middle mb-0">
-      <thead><tr><th>Namn</th><th>Prefix</th><th>Skapad</th><th>Senast använd</th><th></th></tr></thead>
+      <thead><tr><th>Namn</th><th>Ägare</th><th>Prefix</th><th>Skapad</th><th>Senast använd</th><th></th></tr></thead>
       <tbody>
       {% for token in tokens %}
         <tr>
           <td>{{ token.name }}</td>
+          <td>{{ user_lookup.get(token.owner_id, token.owner_id) }}</td>
           <td><code>{{ token.token_prefix }}…</code></td>
           <td>{{ token.created_at }}</td>
           <td>{{ token.last_used_at or '-' }}</td>
           <td class="text-end">
-            <form method="post" action="{{ url_for('delete_api_token', token_id=token.id) }}" onsubmit="return confirm('Radera token?');">
+            <form method="post" onsubmit="return confirm('Radera token?');">
+              <input type="hidden" name="action" value="delete_token">
+              <input type="hidden" name="token_id" value="{{ token.id }}">
               <button class="btn btn-sm btn-outline-danger">Radera</button>
             </form>
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="5" class="muted">Inga tokens ännu.</td></tr>
+        <tr><td colspan="6" class="text-muted">Inga tokens ännu.</td></tr>
       {% endfor %}
       </tbody>
     </table>

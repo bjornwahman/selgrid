@@ -5,6 +5,28 @@
   <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light btn-sm">Till dashboard</a>
 </div>
 
+<div class="card mb-4">
+  <div class="card-body">
+    <h5>Ladda upp .side-check</h5>
+    <form method="post" enctype="multipart/form-data">
+      <div class="mb-3">
+        <label class="form-label">.side fil</label>
+        <input type="file" class="form-control" name="side_file" accept=".side">
+        <div class="form-text text-muted">Valfritt om du istället klistrar in rå JSON nedan.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Eller klistra in rå .side JSON</label>
+        <textarea class="form-control" name="side_raw" rows="6" placeholder='{"tests": [...], "urls": [...]}'></textarea>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Intervall (minuter)</label>
+        <input type="number" class="form-control" name="interval_minutes" value="5" min="1" required>
+      </div>
+      <button class="btn btn-warning mt-3">Spara och schemalägg</button>
+    </form>
+  </div>
+</div>
+
 <div class="card">
   <div class="card-body">
     <h5 class="mb-3">Hantera checkar</h5>
