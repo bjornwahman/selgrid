@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4">
+  <aside class="col-lg-3">
+    <div class="card position-sticky" style="top: 1rem;">
+      <div class="card-body">
+        <h2 class="h6 text-uppercase text-muted">Meny</h2>
+        <nav class="nav flex-column gap-1">
+          <a class="nav-link px-0 text-warning" href="#oversikt">Översikt</a>
+          <a class="nav-link px-0 text-warning" href="#kom-igang">Kom igång</a>
+          <a class="nav-link px-0 text-warning" href="#selenium-kommandon">Selenium-kommandon</a>
+          <a class="nav-link px-0 text-warning" href="#secrets">Secrets</a>
+          <a class="nav-link px-0 text-warning" href="#app-flode">Så fungerar appen</a>
+          <a class="nav-link px-0 text-warning" href="#bilder">GUI-bilder</a>
+          <a class="nav-link px-0 text-warning" href="#api">API och automatisering</a>
+        </nav>
+      </div>
+    </div>
+  </aside>
+
+  <section class="col-lg-9">
+    <div class="card mb-4" id="oversikt">
+      <div class="card-body">
+        <h1 class="h3">Hjälp</h1>
+        <p class="mb-0">Här hittar du en samlad guide för Selgrid: vilka Selenium-kommandon som stöds, hur secrets fungerar, hur du använder appen i vardagen och exempel med bilder från gränssnittet.</p>
+      </div>
+    </div>
+
+    <div class="card mb-4" id="kom-igang">
+      <div class="card-body">
+        <h2 class="h4">Kom igång snabbt</h2>
+        <ol class="mb-0">
+          <li>Logga in och öppna <strong>Checks</strong>.</li>
+          <li>Ladda upp en <code>.side</code>-fil eller klistra in rå JSON.</li>
+          <li>Välj intervall i minuter och spara.</li>
+          <li>Öppna testdetaljer för att köra manuellt, se historik och lägga till secrets.</li>
+          <li>Följ upp status i Dashboard/Status och via API.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card mb-4" id="selenium-kommandon">
+      <div class="card-body">
+        <h2 class="h4">Selenium-kommandon som stöds</h2>
+        <p>Tabellen visar de kommandon Selgrid kan köra från Selenium IDE-filer.</p>
+        <div class="table-responsive">
+          <table class="table table-striped align-middle">
+            <thead>
+              <tr>
+                <th>Command</th>
+                <th>Vad det gör</th>
+                <th>Exempel</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in command_docs %}
+              <tr>
+                <td><code>{{ item.command }}</code></td>
+                <td>{{ item.description }}</td>
+                <td><code>{{ item.example }}</code></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-4" id="secrets">
+      <div class="card-body">
+        <h2 class="h4">Secrets – hur det fungerar</h2>
+        <ul>
+          <li>Secrets sparas per test under testets detaljsida.</li>
+          <li>Nyckel + värde lagras i databasen och ersätts i körningstid.</li>
+          <li>Använd formatet <code>${KEY}</code> i <code>target</code> eller <code>value</code> i dina steg.</li>
+        </ul>
+        <p><strong>Exempel:</strong> Om du sparar <code>USERNAME=anna@example.com</code> och <code>PASSWORD=superhemligt</code> kan du skriva:</p>
+        <pre><code>type | id=email | ${USERNAME}
+type | id=password | ${PASSWORD}
+click | css=button[type='submit'] |</code></pre>
+        <p class="mb-0">När testet körs byter Selgrid automatiskt ut variablerna mot respektive värde.</p>
+      </div>
+    </div>
+
+    <div class="card mb-4" id="app-flode">
+      <div class="card-body">
+        <h2 class="h4">Så använder du appen</h2>
+        <h3 class="h6 text-uppercase text-muted mt-3">Dashboard</h3>
+        <p>Visar dina checkar, senaste resultat och snabb access till detaljer.</p>
+        <h3 class="h6 text-uppercase text-muted mt-3">Checks</h3>
+        <p>Här skapar du nya checkar via filuppladdning eller raw JSON.</p>
+        <h3 class="h6 text-uppercase text-muted mt-3">Testdetaljer</h3>
+        <p>Här kan du köra direkt, redigera steg, lägga till secrets och analysera körhistorik inklusive stegmetrik.</p>
+        <h3 class="h6 text-uppercase text-muted mt-3">Status</h3>
+        <p>Visar hälsa för Selenium Grid och Chrome-nod.</p>
+      </div>
+    </div>
+
+    <div class="card mb-4" id="bilder">
+      <div class="card-body">
+        <h2 class="h4">GUI-bilder</h2>
+        <p>Exempelbilder från appens gränssnitt:</p>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <figure class="mb-0">
+              <img src="{{ url_for('static', filename='images/help/help-landing.svg') }}" class="img-fluid rounded border border-secondary" alt="Startsidan i Selgrid">
+              <figcaption class="small text-muted mt-2">Startsidan.</figcaption>
+            </figure>
+          </div>
+          <div class="col-md-6">
+            <figure class="mb-0">
+              <img src="{{ url_for('static', filename='images/help/help-api-docu.svg') }}" class="img-fluid rounded border border-secondary" alt="API-dokumentation i Selgrid">
+              <figcaption class="small text-muted mt-2">API-dokumentation (Docu).</figcaption>
+            </figure>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="api">
+      <div class="card-body">
+        <h2 class="h4">API och automatisering</h2>
+        <p>Selgrid har en OpenAPI-beskrivning under <code>/docu/openapi.json</code> och Swagger UI under <code>/docu</code>. För API-anrop används bearer token som skapas i Admin.</p>
+        <pre class="mb-0"><code>curl -H "Authorization: Bearer &lt;DIN_TOKEN&gt;" \
+  {{ api_base }}/api/tests</code></pre>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -146,6 +146,33 @@ SUPPORTED_COMMANDS = {
     "note",
 }
 SUPPORTED_COMMAND_OPTIONS = sorted(SUPPORTED_COMMANDS)
+COMMAND_DOCS = [
+    {"command": "open", "description": "Öppnar en URL eller path från testets bas-URL.", "example": "open | /login |"},
+    {"command": "click", "description": "Klickar på elementet som matchar locatorn.", "example": "click | css=button.save |"},
+    {"command": "doubleClick", "description": "Dubbelklickar på ett element.", "example": "doubleClick | id=submit |"},
+    {"command": "type", "description": "Skriver text i ett input-fält (ersätter befintligt värde).", "example": "type | id=email | user@example.com"},
+    {"command": "sendKeys", "description": "Skickar tangenttryckningar till aktivt element.", "example": "sendKeys | css=input.search | selenium"},
+    {"command": "select", "description": "Väljer ett alternativ i en <select>-lista.", "example": "select | id=country | label=Sweden"},
+    {"command": "check", "description": "Markerar checkbox/radioknapp om den inte redan är markerad.", "example": "check | id=terms |"},
+    {"command": "uncheck", "description": "Avmarkerar checkbox om den är markerad.", "example": "uncheck | id=newsletter |"},
+    {"command": "mouseOver", "description": "Hover över ett element med muspekaren.", "example": "mouseOver | css=.menu-item |"},
+    {"command": "submit", "description": "Skickar formuläret för elementet.", "example": "submit | css=form#login |"},
+    {"command": "pause", "description": "Pausar körningen i angivet antal millisekunder.", "example": "pause | 1000 |"},
+    {"command": "assertTitle", "description": "Verifierar att sidans title matchar förväntat värde.", "example": "assertTitle | Dashboard |"},
+    {"command": "assertText", "description": "Verifierar textinnehåll för ett element.", "example": "assertText | css=h1 | Välkommen"},
+    {"command": "assertValue", "description": "Verifierar value-attribut på ett inputfält.", "example": "assertValue | id=email | anna@example.com"},
+    {"command": "assertElementPresent", "description": "Verifierar att elementet finns i DOM.", "example": "assertElementPresent | css=.hero |"},
+    {"command": "assertElementNotPresent", "description": "Verifierar att elementet inte finns i DOM.", "example": "assertElementNotPresent | css=.error-banner |"},
+    {"command": "waitForElementPresent", "description": "Väntar tills elementet finns i DOM.", "example": "waitForElementPresent | css=.result | 10"},
+    {"command": "waitForElementVisible", "description": "Väntar tills elementet syns på sidan.", "example": "waitForElementVisible | id=ready | 8"},
+    {"command": "waitForElement", "description": "Alias för waitForElementPresent.", "example": "waitForElement | css=.card | 5"},
+    {"command": "waitForElementNotPresent", "description": "Väntar tills elementet försvinner från DOM.", "example": "waitForElementNotPresent | css=.loading | 10"},
+    {"command": "waitForElementNotVisible", "description": "Väntar tills elementet inte längre är synligt.", "example": "waitForElementNotVisible | css=.spinner | 10"},
+    {"command": "setWindowSize", "description": "Sätter browserfönstrets storlek.", "example": "setWindowSize | 1440x900 |"},
+    {"command": "comment", "description": "Kommentarsteg som loggas men inte kör UI-action.", "example": "comment | | Start av login"},
+    {"command": "echo", "description": "Skriver ut text i loggen.", "example": "echo | | Login steg 1"},
+    {"command": "note", "description": "Alias för kommentars-/noteringssteg i Selenium IDE.", "example": "note | | Kontrollera dashboard"},
+]
 
 
 db = SQLAlchemy(app)
@@ -1118,6 +1145,11 @@ def add_secret(test_case_id):
 @app.route("/docu")
 def docu_page():
     return render_template("docs.html")
+
+
+@app.route("/help")
+def help_page():
+    return render_template("help.html", command_docs=COMMAND_DOCS, api_base=request.host_url.rstrip("/"))
 
 
 @app.route("/docu/openapi.json")
