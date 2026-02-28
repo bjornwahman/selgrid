@@ -51,6 +51,8 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 ALLOWED_EXTENSIONS = {"side"}
 SELENIUM_REMOTE_URL = os.getenv("SELENIUM_REMOTE_URL", "http://127.0.0.1:4444/wd/hub")
+DEFAULT_ADMIN_USERNAME = os.getenv("DEFAULT_ADMIN_USERNAME", "").strip()
+DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "").strip()
 SUPPORTED_COMMANDS = {
     "open",
     "click",
@@ -146,51 +148,19 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
-def is_admin_user(user: User) -> bool:
-    return bool(user and user.username == DEFAULT_ADMIN_USERNAME)
+def ensure_default_admin_user():
+    if not DEFAULT_ADMIN_USERNAME or not DEFAULT_ADMIN_PASSWORD:
+        return
 
-
-def token_digest(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-
-def issue_api_token(owner_id: int, name: str):
-    raw = secrets.token_urlsafe(32)
-    token = ApiToken(
-        owner_id=owner_id,
-        name=name,
-        token_hash=token_digest(raw),
-        token_prefix=raw[:8],
-    )
-    db.session.add(token)
-    db.session.commit()
-    return raw, token
-
-
-def get_bearer_token() -> str:
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
-        return ""
-    return auth[7:].strip()
-
-
-def api_auth_required(view_func):
-    @wraps(view_func)
-    def wrapped(*args, **kwargs):
-        raw = get_bearer_token()
-        if not raw:
-            return jsonify({"error": "Missing bearer token"}), 401
-
-        token = ApiToken.query.filter_by(token_hash=token_digest(raw)).first()
-        if not token:
-            return jsonify({"error": "Invalid bearer token"}), 401
-
-        token.last_used_at = datetime.utcnow()
+    admin_user = User.query.filter_by(username=DEFAULT_ADMIN_USERNAME).first()
+    if not admin_user:
+        db.session.add(
+            User(
+                username=DEFAULT_ADMIN_USERNAME,
+                password_hash=generate_password_hash(DEFAULT_ADMIN_PASSWORD),
+            )
+        )
         db.session.commit()
-        request.api_user = User.query.get(token.owner_id)
-        return view_func(*args, **kwargs)
-
-    return wrapped
 
 
 def is_allowed_file(filename: str) -> bool:
@@ -842,15 +812,7 @@ def get_upload(filename):
 
 with app.app_context():
     db.create_all()
-    admin_user = User.query.filter_by(username=DEFAULT_ADMIN_USERNAME).first()
-    if not admin_user:
-        admin_user = User(
-            username=DEFAULT_ADMIN_USERNAME,
-            password_hash=generate_password_hash(DEFAULT_ADMIN_PASSWORD),
-        )
-        db.session.add(admin_user)
-        db.session.commit()
-
+    ensure_default_admin_user()
     if not scheduler.running:
         scheduler.start()
     for case in TestCase.query.filter_by(active=True).all():

@@ -49,6 +49,7 @@ curl -H "Authorization: Bearer <token>" http://127.0.0.1:8080/api/tests
 - `SELENIUM_REMOTE_URL` (default: `http://127.0.0.1:4444/wd/hub`)
 - `APP_SECRET` (default: `dev-secret`)
 - `DATABASE_URL` (default: lokal SQLite-fil `selgrid.db`)
+- `DEFAULT_ADMIN_USERNAME` och `DEFAULT_ADMIN_PASSWORD` (valfritt: om båda sätts skapas admin-användaren automatiskt vid start)
 - `GRID_PORT` (används av `scripts/start_local_grid.sh`, default: `4444`)
 - `SELENIUM_VERSION` (används av scripts, default: `4.27.0`)
 - `SELENIUM_DIR` (används av scripts, default: `./.selenium`)
