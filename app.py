@@ -4,6 +4,8 @@ import logging
 import os
 import secrets
 import time
+import urllib.error
+import urllib.request
 from datetime import datetime
 from json import JSONDecodeError
 from pathlib import Path
@@ -56,6 +58,8 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 LOG_FILE_PATH = BASE_DIR / "selgrid.log"
 APP_VERSION_FILE = BASE_DIR / "version.txt"
 ERROR_TEMPLATE_PATH = BASE_DIR / "templates" / "500.html"
+SELENIUM_GRID_STATUS_URL = os.getenv("SELENIUM_GRID_STATUS_URL", "http://127.0.0.1:4444/status")
+CHROME_SELENIUM_STATUS_URL = os.getenv("CHROME_SELENIUM_STATUS_URL", "http://127.0.0.1:5555/status")
 
 
 def configure_logging():
@@ -281,6 +285,85 @@ def parse_positive_int(raw_value, default_value):
         return max(int(raw_value), 1)
     except (TypeError, ValueError):
         return default_value
+
+
+def is_admin_user(user):
+    return bool(getattr(user, "is_authenticated", False) and getattr(user, "username", "") == "admin")
+
+
+def parse_health_payload(payload):
+    if not isinstance(payload, dict):
+        return False, "okänd payload"
+
+    if "ready" in payload:
+        return bool(payload.get("ready")), payload.get("message") or payload.get("state") or ""
+
+    value = payload.get("value")
+    if isinstance(value, dict) and "ready" in value:
+        return bool(value.get("ready")), value.get("message") or value.get("state") or ""
+
+    if payload.get("status") == "ok":
+        return True, "ok"
+
+    return False, "saknar ready/status"
+
+
+def check_service_health(url: str):
+    try:
+        with urllib.request.urlopen(url, timeout=4) as response:
+            body = response.read().decode("utf-8")
+            payload = json.loads(body)
+    except urllib.error.URLError as exc:
+        return {"ok": False, "error": str(exc), "url": url, "details": "kan inte ansluta"}
+    except (TimeoutError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        return {"ok": False, "error": str(exc), "url": url, "details": "ogiltigt svar"}
+
+    is_ok, details = parse_health_payload(payload)
+    return {"ok": is_ok, "url": url, "details": details or "svar mottaget", "payload": payload}
+
+
+def create_test_case_from_request(owner_id: int):
+    upload = request.files.get("side_file")
+    side_raw = request.form.get("side_raw", "").strip()
+    interval = parse_positive_int(request.form.get("interval_minutes", "5"), 5)
+    selected_test = request.form.get("selenium_test_id", "")
+
+    path = None
+    source_name = "pasted.side"
+    if upload and upload.filename:
+        if not is_allowed_file(upload.filename):
+            raise ValueError("Endast .side filer stöds")
+        source_name = secure_filename(upload.filename)
+        path = UPLOAD_DIR / f"{int(time.time())}-{source_name}"
+        upload.save(path)
+    elif side_raw:
+        try:
+            json.loads(side_raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError("Rå .side-data är inte giltig JSON") from exc
+        path = UPLOAD_DIR / f"{int(time.time())}-pasted.side"
+        path.write_text(side_raw, encoding="utf-8")
+    else:
+        raise ValueError("Ladda upp en .side-fil eller klistra in rå JSON")
+
+    _, tests, _ = read_side_file(path)
+    if not tests:
+        raise ValueError("Inga tester hittades i filen")
+
+    default_test = tests[0]
+    chosen_test = next((item for item in tests if item.get("id") == selected_test), default_test)
+    test_case = TestCase(
+        owner_id=owner_id,
+        name=chosen_test.get("name") or source_name,
+        file_path=str(path),
+        interval_minutes=interval,
+        selenium_test_id=chosen_test.get("id"),
+    )
+    db.session.add(test_case)
+    db.session.commit()
+    schedule_test_case(test_case)
+
+    return test_case
 
 
 def api_auth_required(func=None):
@@ -598,67 +681,130 @@ def logout():
 @app.route("/dashboard", methods=["GET", "POST"])
 @login_required
 def dashboard():
-    if request.method == "POST":
-        upload = request.files.get("side_file")
-        side_raw = request.form.get("side_raw", "").strip()
-        interval = parse_positive_int(request.form.get("interval_minutes", "5"), 5)
-        selected_test = request.form.get("selenium_test_id", "")
-
-        path = None
-        source_name = "pasted.side"
-        if upload and upload.filename:
-            if not is_allowed_file(upload.filename):
-                flash("Endast .side filer stöds")
-                return redirect(url_for("dashboard"))
-            source_name = secure_filename(upload.filename)
-            path = UPLOAD_DIR / f"{int(time.time())}-{source_name}"
-            upload.save(path)
-        elif side_raw:
-            try:
-                json.loads(side_raw)
-            except json.JSONDecodeError:
-                flash("Rå .side-data är inte giltig JSON")
-                return redirect(url_for("dashboard"))
-            path = UPLOAD_DIR / f"{int(time.time())}-pasted.side"
-            path.write_text(side_raw, encoding="utf-8")
-        else:
-            flash("Ladda upp en .side-fil eller klistra in rå JSON")
-            return redirect(url_for("dashboard"))
-
-        _, tests, _ = read_side_file(path)
-        if not tests:
-            flash("Inga tester hittades i filen")
-            return redirect(url_for("dashboard"))
-
-        default_test = tests[0]
-        chosen_test = next((item for item in tests if item.get("id") == selected_test), default_test)
-        test_case = TestCase(
-            owner_id=current_user.id,
-            name=chosen_test.get("name") or source_name,
-            file_path=str(path),
-            interval_minutes=interval,
-            selenium_test_id=chosen_test.get("id"),
-        )
-        db.session.add(test_case)
-        db.session.commit()
-        schedule_test_case(test_case)
-
-        unsupported = get_unsupported_commands(read_side_file(path)[0], test_case.selenium_test_id)
-        if unsupported:
-            flash(f"Varning: Kommandon som saknas stöd för: {', '.join(unsupported)}")
-
-        flash("Test uppladdat och schemalagt")
-        return redirect(url_for("dashboard"))
-
     test_rows = build_dashboard_rows(current_user.id)
     return render_template("dashboard.html", test_rows=test_rows)
 
 
-@app.route("/checks")
+@app.route("/checks", methods=["GET", "POST"])
 @login_required
 def checks_page():
+    if request.method == "POST":
+        try:
+            test_case = create_test_case_from_request(current_user.id)
+        except ValueError as exc:
+            flash(str(exc))
+            return redirect(url_for("checks_page"))
+
+        unsupported = get_unsupported_commands(read_side_file(Path(test_case.file_path))[0], test_case.selenium_test_id)
+        if unsupported:
+            flash(f"Varning: Kommandon som saknas stöd för: {', '.join(unsupported)}")
+        flash("Test uppladdat och schemalagt")
+        return redirect(url_for("checks_page"))
+
     test_rows = build_dashboard_rows(current_user.id)
     return render_template("checks.html", test_rows=test_rows)
+
+
+@app.route("/admin", methods=["GET", "POST"])
+@login_required
+def admin_page():
+    if not is_admin_user(current_user):
+        flash("Endast admin har åtkomst till adminsidan")
+        return redirect(url_for("dashboard"))
+
+    created_token = None
+
+    if request.method == "POST":
+        action = request.form.get("action", "")
+
+        if action == "create_user":
+            username = request.form.get("username", "").strip()
+            password = request.form.get("password", "")
+            if not username or not password:
+                flash("Användarnamn och lösenord krävs")
+            elif User.query.filter_by(username=username).first():
+                flash("Användarnamnet finns redan")
+            else:
+                db.session.add(User(username=username, password_hash=generate_password_hash(password)))
+                db.session.commit()
+                flash("Användare skapad")
+
+        if action == "update_user":
+            user_id = parse_positive_int(request.form.get("user_id"), 0)
+            new_username = request.form.get("username", "").strip()
+            new_password = request.form.get("password", "")
+            user_obj = User.query.get(user_id)
+            if not user_obj:
+                flash("Användare hittades inte")
+            elif not new_username:
+                flash("Användarnamn får inte vara tomt")
+            elif User.query.filter(User.username == new_username, User.id != user_obj.id).first():
+                flash("Användarnamnet används redan")
+            else:
+                user_obj.username = new_username
+                if new_password:
+                    user_obj.password_hash = generate_password_hash(new_password)
+                db.session.commit()
+                flash("Användare uppdaterad")
+
+        if action == "delete_user":
+            user_id = parse_positive_int(request.form.get("user_id"), 0)
+            user_obj = User.query.get(user_id)
+            if not user_obj:
+                flash("Användare hittades inte")
+            elif user_obj.username == "admin":
+                flash("Admin-kontot kan inte raderas")
+            else:
+                ApiToken.query.filter_by(owner_id=user_obj.id).delete(synchronize_session=False)
+                test_cases = TestCase.query.filter_by(owner_id=user_obj.id).all()
+                for case in test_cases:
+                    unschedule_test_case(case.id)
+                    StepMetric.query.filter(
+                        StepMetric.test_run_id.in_(db.session.query(TestRun.id).filter_by(test_case_id=case.id))
+                    ).delete(synchronize_session=False)
+                    TestRun.query.filter_by(test_case_id=case.id).delete(synchronize_session=False)
+                    Secret.query.filter_by(test_case_id=case.id).delete(synchronize_session=False)
+                    file_path = Path(case.file_path)
+                    if file_path.exists():
+                        file_path.unlink()
+                    db.session.delete(case)
+                db.session.delete(user_obj)
+                db.session.commit()
+                flash("Användare och tillhörande data raderad")
+
+        if action == "create_token":
+            owner_id = parse_positive_int(request.form.get("owner_id"), 0)
+            name = request.form.get("name", "").strip()
+            owner = User.query.get(owner_id)
+            if not owner:
+                flash("Välj en giltig användare")
+            elif not name:
+                flash("Token-namn krävs")
+            else:
+                raw_token = secrets.token_urlsafe(32)
+                token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+                token_prefix = raw_token[:8]
+                db.session.add(
+                    ApiToken(owner_id=owner.id, name=name, token_hash=token_hash, token_prefix=token_prefix)
+                )
+                db.session.commit()
+                created_token = raw_token
+                flash("Token skapad")
+
+        if action == "delete_token":
+            token_id = parse_positive_int(request.form.get("token_id"), 0)
+            token = ApiToken.query.get(token_id)
+            if not token:
+                flash("Token hittades inte")
+            else:
+                db.session.delete(token)
+                db.session.commit()
+                flash("Token raderad")
+
+    users = User.query.order_by(User.username.asc()).all()
+    tokens = ApiToken.query.order_by(ApiToken.created_at.desc()).all()
+    user_lookup = {user.id: user.username for user in users}
+    return render_template("admin.html", users=users, tokens=tokens, user_lookup=user_lookup, created_token=created_token)
 
 
 @app.route("/test/<int:test_case_id>/edit", methods=["GET", "POST"], endpoint="edit_test_case")
@@ -864,13 +1010,13 @@ def add_secret(test_case_id):
     return redirect(url_for("test_detail", test_case_id=test_case.id))
 
 
-@app.route("/docs")
-def docs_page():
+@app.route("/docu")
+def docu_page():
     return render_template("docs.html")
 
 
-@app.route("/docs/openapi.json")
-def docs_openapi():
+@app.route("/docu/openapi.json")
+def docu_openapi():
     return jsonify(
         {
             "openapi": "3.0.3",
@@ -901,6 +1047,14 @@ def docs_openapi():
             },
         }
     )
+
+
+@app.route("/status")
+@login_required
+def status_page():
+    grid_health = check_service_health(SELENIUM_GRID_STATUS_URL)
+    chrome_health = check_service_health(CHROME_SELENIUM_STATUS_URL)
+    return render_template("status.html", grid_health=grid_health, chrome_health=chrome_health)
 
 
 @app.route("/api/health")
