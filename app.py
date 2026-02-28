@@ -550,13 +550,14 @@ def build_dashboard_rows(owner_id: int):
     rows = []
     tests = TestCase.query.filter_by(owner_id=owner_id).order_by(TestCase.id.desc()).all()
     for test_case in tests:
+        latest_run = TestRun.query.filter_by(test_case_id=test_case.id).order_by(TestRun.started_at.desc()).first()
         unsupported = []
         try:
             payload, _, _ = read_side_file(Path(test_case.file_path))
             unsupported = get_unsupported_commands(payload, test_case.selenium_test_id)
         except Exception:
             unsupported = ["kunde inte läsa .side"]
-        rows.append({"test": test_case, "unsupported": unsupported})
+        rows.append({"test": test_case, "unsupported": unsupported, "latest_run": latest_run})
     return rows
 
 
@@ -651,6 +652,13 @@ def dashboard():
 
     test_rows = build_dashboard_rows(current_user.id)
     return render_template("dashboard.html", test_rows=test_rows)
+
+
+@app.route("/checks")
+@login_required
+def checks_page():
+    test_rows = build_dashboard_rows(current_user.id)
+    return render_template("checks.html", test_rows=test_rows)
 
 
 @app.route("/test/<int:test_case_id>/edit", methods=["GET", "POST"], endpoint="edit_test_case")

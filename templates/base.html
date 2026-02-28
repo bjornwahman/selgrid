@@ -42,6 +42,23 @@
       .text-muted {
         color: var(--sel-muted) !important;
       }
+      .check-tile {
+        border-radius: 0.75rem;
+        padding: 1rem;
+        border: 1px solid transparent;
+      }
+      .check-tile.ok {
+        background: rgba(25, 135, 84, 0.2);
+        border-color: rgba(25, 135, 84, 0.6);
+      }
+      .check-tile.failed {
+        background: rgba(220, 53, 69, 0.2);
+        border-color: rgba(220, 53, 69, 0.6);
+      }
+      .check-tile.unknown {
+        background: rgba(108, 117, 125, 0.2);
+        border-color: rgba(108, 117, 125, 0.6);
+      }
       code {
         color: #ffb15c;
       }
@@ -57,6 +74,7 @@
               <a class="btn btn-outline-warning btn-sm" href="{{ url_for('docs_page') }}">Admin</a>
             {% endif %}
             <a class="btn btn-outline-light btn-sm" href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a class="btn btn-outline-light btn-sm" href="{{ url_for('checks_page') }}">Checks</a>
             <a class="btn btn-outline-warning btn-sm" href="{{ url_for('logout') }}">Logga ut</a>
           {% else %}
             <a class="btn btn-outline-light btn-sm" href="{{ url_for('login') }}">Logga in</a>
