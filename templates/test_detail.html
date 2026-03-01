@@ -3,7 +3,7 @@
 <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
   <h2 class="mb-0">{{ test_case.name }}</h2>
   {% for tag in test_case.tags|sort(attribute="name") %}
-    <span class="badge" style="background-color: {{ tag.color }}; color: #fff;">{{ tag.name }}</span>
+    <span class="tag-badge" style="background-color: {{ tag.color }}; color: #fff;">{{ tag.name }}</span>
   {% endfor %}
 </div>
 <p><strong>Intervall:</strong> {{ test_case.interval_minutes }} minuter</p>

@@ -30,6 +30,15 @@
               Ingen historik ännu
             {% endif %}
           </div>
+          <div class="mt-2 d-flex flex-wrap gap-1">
+            {% if row.test.tags %}
+              {% for tag in row.test.tags|sort(attribute="name") %}
+                <span class="tag-badge" style="background-color: {{ tag.color }}; color: #fff;">{{ tag.name }}</span>
+              {% endfor %}
+            {% else %}
+              <span class="small text-muted">Inga taggar</span>
+            {% endif %}
+          </div>
           {% if row.recent_runs %}
             <div class="run-trend">
               <div class="run-trend-label">Senaste {{ row.recent_runs|length }} körningar</div>
