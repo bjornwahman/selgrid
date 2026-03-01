@@ -812,3 +812,66 @@ def test_admin_can_update_retention_months():
         setting = selgrid_app.DataRetentionSetting.query.first()
         assert setting is not None
         assert setting.months_to_keep == 9
+
+
+def test_admin_page_shows_run_log_and_next_scheduled_run():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+    client = selgrid_app.app.test_client()
+
+    with selgrid_app.app.app_context():
+        admin = selgrid_app.User(
+            username="admin",
+            password_hash=selgrid_app.generate_password_hash("admin"),
+        )
+        owner = selgrid_app.User(
+            username="owner",
+            password_hash=selgrid_app.generate_password_hash("owner"),
+        )
+        selgrid_app.db.session.add(admin)
+        selgrid_app.db.session.add(owner)
+        selgrid_app.db.session.commit()
+
+        case = selgrid_app.TestCase(
+            owner_id=owner.id,
+            name="Schema check",
+            file_path="/tmp/demo.side",
+            interval_minutes=15,
+            selenium_test_id="t-1",
+            active=True,
+        )
+        selgrid_app.db.session.add(case)
+        selgrid_app.db.session.commit()
+
+        selgrid_app.db.session.add(
+            selgrid_app.TestRun(
+                test_case_id=case.id,
+                started_at=selgrid_app.datetime.utcnow(),
+                finished_at=selgrid_app.datetime.utcnow(),
+                status="success",
+                total_duration_ms=321,
+            )
+        )
+        selgrid_app.db.session.commit()
+
+    job_id = "test-admin-page-run-log"
+    selgrid_app.scheduler.add_job(
+        lambda: None,
+        trigger="date",
+        run_date=selgrid_app.datetime.now(selgrid_app.timezone.utc) + selgrid_app.timedelta(minutes=30),
+        id=job_id,
+        replace_existing=True,
+    )
+
+    try:
+        client.post("/login", data={"username": "admin", "password": "admin"}, follow_redirects=True)
+        response = client.get("/admin")
+    finally:
+        if selgrid_app.scheduler.get_job(job_id):
+            selgrid_app.scheduler.remove_job(job_id)
+
+    assert response.status_code == 200
+    assert "Körlogg".encode("utf-8") in response.data
+    assert "Nästa schemalagda körning".encode("utf-8") in response.data
+    assert b"Schema check" in response.data
+    assert b"owner" in response.data
