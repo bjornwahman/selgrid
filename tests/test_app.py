@@ -471,7 +471,7 @@ def test_admin_page_handles_users_and_tokens():
 
     token_response = client.post(
         "/admin",
-        data={"action": "create_token", "owner_id": str(kalle.id), "name": "api"},
+        data={"action": "create_token", "section": "tokens", "owner_id": str(kalle.id), "name": "api"},
         follow_redirects=True,
     )
     assert token_response.status_code == 200
@@ -875,3 +875,76 @@ def test_admin_page_shows_run_log_and_next_scheduled_run():
     assert "Nästa schemalagda körning".encode("utf-8") in response.data
     assert b"Schema check" in response.data
     assert b"owner" in response.data
+
+
+def test_admin_section_filter_shows_only_selected_panel():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+    client = selgrid_app.app.test_client()
+
+    with selgrid_app.app.app_context():
+        selgrid_app.db.session.add(
+            selgrid_app.User(
+                username="admin",
+                password_hash=selgrid_app.generate_password_hash("admin"),
+            )
+        )
+        selgrid_app.db.session.commit()
+
+    client.post("/login", data={"username": "admin", "password": "admin"}, follow_redirects=True)
+
+    users_page = client.get("/admin?section=users")
+    assert users_page.status_code == 200
+    assert "Lägg till användare".encode("utf-8") in users_page.data
+    assert "Nästa schemalagda körning".encode("utf-8") not in users_page.data
+
+
+def test_admin_can_cancel_running_run():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+    client = selgrid_app.app.test_client()
+
+    with selgrid_app.app.app_context():
+        admin = selgrid_app.User(
+            username="admin",
+            password_hash=selgrid_app.generate_password_hash("admin"),
+        )
+        owner = selgrid_app.User(username="anna", password_hash="x")
+        selgrid_app.db.session.add_all([admin, owner])
+        selgrid_app.db.session.commit()
+
+        case = selgrid_app.TestCase(
+            owner_id=owner.id,
+            name="case",
+            file_path="/tmp/demo.side",
+            interval_minutes=5,
+            selenium_test_id="t-1",
+            active=True,
+        )
+        selgrid_app.db.session.add(case)
+        selgrid_app.db.session.commit()
+
+        run = selgrid_app.TestRun(
+            test_case_id=case.id,
+            started_at=selgrid_app.datetime.utcnow(),
+            status="running",
+            total_duration_ms=0,
+        )
+        selgrid_app.db.session.add(run)
+        selgrid_app.db.session.commit()
+        run_id = run.id
+
+    client.post("/login", data={"username": "admin", "password": "admin"}, follow_redirects=True)
+    response = client.post(
+        "/admin",
+        data={"action": "cancel_run", "section": "runlog", "run_id": str(run_id)},
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert "Körning avbröts".encode("utf-8") in response.data
+
+    with selgrid_app.app.app_context():
+        updated = selgrid_app.TestRun.query.get(run_id)
+        assert updated.status == "aborted"
+        assert updated.error_message == "Avbruten av admin"
