@@ -1408,6 +1408,23 @@ def delete_test(test_case_id):
 def test_detail(test_case_id):
     test_case = TestCase.query.filter_by(id=test_case_id, owner_id=current_user.id).first_or_404()
     runs = TestRun.query.filter_by(test_case_id=test_case.id).order_by(TestRun.started_at.desc()).all()
+    interval_options = {
+        "1d": {"label": "1 dag", "days": 1},
+        "7d": {"label": "7 dagar", "days": 7},
+        "30d": {"label": "30 dagar", "days": 30},
+        "all": {"label": "All time", "days": None},
+    }
+    selected_interval = request.args.get("trend_interval", "1d").strip().lower()
+    if selected_interval not in interval_options:
+        selected_interval = "1d"
+
+    cutoff_days = interval_options[selected_interval]["days"]
+    if cutoff_days is None:
+        chart_runs = list(reversed(runs))
+    else:
+        cutoff = datetime.utcnow() - timedelta(days=cutoff_days)
+        chart_runs = [run for run in reversed(runs) if run.started_at >= cutoff]
+
     metrics = {
         run.id: StepMetric.query.filter_by(test_run_id=run.id).order_by(StepMetric.step_index.asc()).all()
         for run in runs
@@ -1430,9 +1447,11 @@ def test_detail(test_case_id):
         metrics=metrics,
         secrets=Secret.query.filter_by(test_case_id=test_case.id).all(),
         unsupported_commands=unsupported,
-        chart_labels=[format_local_datetime(run.started_at) for run in reversed(runs)],
-        chart_durations=[0 if run.status == "failed" else run.total_duration_ms for run in reversed(runs)],
-        chart_statuses=[run.status for run in reversed(runs)],
+        chart_labels=[format_local_datetime(run.started_at) for run in chart_runs],
+        chart_durations=[0 if run.status == "failed" else run.total_duration_ms for run in chart_runs],
+        chart_statuses=[run.status for run in chart_runs],
+        trend_interval=selected_interval,
+        trend_interval_options=interval_options,
         total_runs=total_runs,
         success_rate=int((success_runs / total_runs) * 100) if total_runs else 0,
         avg_duration=avg_duration,

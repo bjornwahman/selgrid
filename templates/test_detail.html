@@ -24,7 +24,19 @@
 
 <div class="card mb-4">
   <div class="card-body">
-    <h5>Trend över tid</h5>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+      <h5 class="mb-0">Trend över tid</h5>
+      <div class="btn-group" role="group" aria-label="Tidintervall för trendgraf">
+        {% for key, option in trend_interval_options.items() %}
+          <a
+            href="{{ url_for('test_detail', test_case_id=test_case.id, trend_interval=key) }}"
+            class="btn btn-sm {% if trend_interval == key %}btn-warning{% else %}btn-outline-warning{% endif %}"
+          >
+            {{ option.label }}
+          </a>
+        {% endfor %}
+      </div>
+    </div>
     <p class="text-muted mb-2">Total tid per körning för själva teststegen, med statusmarkerad punktfärg.</p>
     <canvas id="runChart" height="100"></canvas>
   </div>
