@@ -1258,22 +1258,46 @@ def test_admin_can_manage_tags_and_api_exposes_tags():
     client.post("/login", data={"username": "admin", "password": "admin"}, follow_redirects=True)
     response = client.post(
         "/admin",
-        data={"section": "tags", "action": "create_tag", "name": "backend", "color": "#dc3545"},
+        data={
+            "section": "tags",
+            "action": "create_tag",
+            "name": "backend",
+            "color": "#dc3545",
+            "description": "Backendrelaterade checkar",
+        },
         follow_redirects=True,
     )
     assert response.status_code == 200
     assert "Tagg skapad".encode("utf-8") in response.data
 
+    with selgrid_app.app.app_context():
+        backend_tag = selgrid_app.Tag.query.filter_by(name="backend").first()
+        backend_tag_id = backend_tag.id
+
+    update_response = client.post(
+        "/admin",
+        data={
+            "section": "tags",
+            "action": "update_tag",
+            "tag_id": str(backend_tag_id),
+            "name": "backend-updated",
+            "color": "#6610f2",
+            "description": "",
+        },
+        follow_redirects=True,
+    )
+    assert update_response.status_code == 200
+    assert "Tagg uppdaterad".encode("utf-8") in update_response.data
     create_forbidden = client.post(
         "/api/tags",
-        json={"name": "frontend", "color": "#198754"},
+        json={"name": "frontend", "color": "#198754", "description": "UI-relaterade checkar"},
         headers={"Authorization": f"Bearer {user_token}"},
     )
     assert create_forbidden.status_code == 403
 
     create_response = client.post(
         "/api/tags",
-        json={"name": "frontend", "color": "#198754"},
+        json={"name": "frontend", "color": "#198754", "description": "UI-relaterade checkar"},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert create_response.status_code == 201
@@ -1281,10 +1305,13 @@ def test_admin_can_manage_tags_and_api_exposes_tags():
     list_response = client.get("/api/tags", headers={"Authorization": f"Bearer {admin_token}"})
     assert list_response.status_code == 200
     tags_payload = list_response.get_json()
-    assert {item["name"] for item in tags_payload} == {"backend", "frontend"}
+    assert {item["name"] for item in tags_payload} == {"backend-updated", "frontend"}
     color_by_name = {item["name"]: item["color"] for item in tags_payload}
-    assert color_by_name["backend"] == "#dc3545"
+    assert color_by_name["backend-updated"] == "#6610f2"
     assert color_by_name["frontend"] == "#198754"
+    description_by_name = {item["name"]: item["description"] for item in tags_payload}
+    assert description_by_name["backend-updated"] is None
+    assert description_by_name["frontend"] == "UI-relaterade checkar"
 
 
 def test_tag_color_is_visible_on_checks_and_detail_pages():
