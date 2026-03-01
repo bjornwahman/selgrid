@@ -30,6 +30,15 @@
         </select>
       </div>
       <div class="col-12">
+        <label class="form-label">Taggar</label>
+        <select class="form-select" name="tag_ids" multiple>
+          {% set selected_tag_ids = test_case.tags|map(attribute='id')|list %}
+          {% for tag in tags %}
+            <option value="{{ tag.id }}" {% if tag.id in selected_tag_ids %}selected{% endif %}>{{ tag.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12">
         <label class="form-label">Bas-URL för scriptet</label>
         <input class="form-control" name="base_url" value="{{ base_url }}" placeholder="https://example.com">
         <div class="form-text">Används av <code>open</code>-steg när target är relativ (t.ex. <code>/login</code>).</div>
