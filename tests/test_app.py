@@ -1207,3 +1207,78 @@ def test_admin_can_cancel_running_run():
         updated = selgrid_app.TestRun.query.get(run_id)
         assert updated.status == "aborted"
         assert updated.error_message == "Avbruten av admin"
+
+def test_checks_page_hides_latest_command_status_section():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+    client = selgrid_app.app.test_client()
+
+    with selgrid_app.app.app_context():
+        user = selgrid_app.User(
+            username="anna",
+            password_hash=selgrid_app.generate_password_hash("secret"),
+        )
+        selgrid_app.db.session.add(user)
+        selgrid_app.db.session.commit()
+
+    client.post("/login", data={"username": "anna", "password": "secret"}, follow_redirects=True)
+    response = client.get("/checks")
+
+    assert response.status_code == 200
+    assert "Senaste kommandostatus:".encode("utf-8") not in response.data
+
+
+def test_admin_can_manage_tags_and_api_exposes_tags():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+    client = selgrid_app.app.test_client()
+
+    with selgrid_app.app.app_context():
+        admin = selgrid_app.User(
+            username="admin",
+            password_hash=selgrid_app.generate_password_hash("admin"),
+        )
+        regular = selgrid_app.User(username="anna", password_hash="x")
+        selgrid_app.db.session.add_all([admin, regular])
+        selgrid_app.db.session.commit()
+        admin_token = create_api_token_for_user(admin.id, name="admin-token")
+        user_raw_token = "user-token-456"
+        user_hash = selgrid_app.hashlib.sha256(user_raw_token.encode("utf-8")).hexdigest()
+        selgrid_app.db.session.add(
+            selgrid_app.ApiToken(
+                owner_id=regular.id,
+                name="user-token",
+                token_hash=user_hash,
+                token_prefix=user_raw_token[:8],
+            )
+        )
+        selgrid_app.db.session.commit()
+        user_token = user_raw_token
+
+    client.post("/login", data={"username": "admin", "password": "admin"}, follow_redirects=True)
+    response = client.post(
+        "/admin",
+        data={"section": "tags", "action": "create_tag", "name": "backend"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert "Tagg skapad".encode("utf-8") in response.data
+
+    create_forbidden = client.post(
+        "/api/tags",
+        json={"name": "frontend"},
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert create_forbidden.status_code == 403
+
+    create_response = client.post(
+        "/api/tags",
+        json={"name": "frontend"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert create_response.status_code == 201
+
+    list_response = client.get("/api/tags", headers={"Authorization": f"Bearer {admin_token}"})
+    assert list_response.status_code == 200
+    tags_payload = list_response.get_json()
+    assert {item["name"] for item in tags_payload} == {"backend", "frontend"}

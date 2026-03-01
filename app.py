@@ -277,6 +277,19 @@ class TestCase(db.Model):
     interval_minutes = db.Column(db.Integer, nullable=False)
     selenium_test_id = db.Column(db.String(255), nullable=False)
     active = db.Column(db.Boolean, default=True)
+    tags = db.relationship("Tag", secondary="test_case_tag", back_populates="test_cases")
+
+
+class Tag(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), unique=True, nullable=False)
+    test_cases = db.relationship("TestCase", secondary="test_case_tag", back_populates="tags")
+
+
+class TestCaseTag(db.Model):
+    __tablename__ = "test_case_tag"
+    test_case_id = db.Column(db.Integer, db.ForeignKey("test_case.id"), primary_key=True)
+    tag_id = db.Column(db.Integer, db.ForeignKey("tag.id"), primary_key=True)
 
 
 class Secret(db.Model):
@@ -578,6 +591,7 @@ def create_test_case_from_request(owner_id: int):
     side_raw = request.form.get("side_raw", "").strip()
     interval = parse_positive_int(request.form.get("interval_minutes", "5"), 5)
     selected_test = request.form.get("selenium_test_id", "")
+    selected_tag_ids = parse_tag_ids(request.form.getlist("tag_ids"))
 
     path = None
     source_name = "pasted.side"
@@ -610,6 +624,9 @@ def create_test_case_from_request(owner_id: int):
         interval_minutes=interval,
         selenium_test_id=chosen_test.get("id"),
     )
+    if selected_tag_ids:
+        tags = Tag.query.filter(Tag.id.in_(selected_tag_ids)).all()
+        test_case.tags = tags
     db.session.add(test_case)
     db.session.commit()
     schedule_test_case(test_case)
@@ -676,6 +693,7 @@ def serialize_test_case(test_case: TestCase):
         "name": test_case.name,
         "active": test_case.active,
         "interval_minutes": test_case.interval_minutes,
+        "tags": [{"id": tag.id, "name": tag.name} for tag in sorted(test_case.tags, key=lambda item: item.name.lower())],
         "latest_run": {
             "status": latest_status,
             "duration_ms": latest_duration,
@@ -737,6 +755,18 @@ def parse_cleanup_days(raw_value, default_value=30):
     if days_to_keep < 1:
         return False, default_value
     return True, days_to_keep
+
+
+def parse_tag_ids(raw_values):
+    tag_ids = set()
+    for raw_value in raw_values:
+        try:
+            parsed = int(raw_value)
+        except (TypeError, ValueError):
+            continue
+        if parsed > 0:
+            tag_ids.add(parsed)
+    return sorted(tag_ids)
 
 
 def perform_command(driver, command, target, value, variables_map=None):
@@ -1075,7 +1105,8 @@ def checks_page():
         return redirect(url_for("checks_page"))
 
     test_rows = build_dashboard_rows(current_user.id)
-    return render_template("checks.html", test_rows=test_rows)
+    tags = Tag.query.order_by(Tag.name.asc()).all()
+    return render_template("checks.html", test_rows=test_rows, tags=tags)
 
 
 @app.route("/admin", methods=["GET", "POST"])
@@ -1087,7 +1118,7 @@ def admin_page():
 
     created_token = None
     retention_setting = get_data_retention_setting()
-    valid_sections = {"runlog", "database", "schedule", "users", "tokens"}
+    valid_sections = {"runlog", "database", "schedule", "users", "tokens", "tags"}
     active_section = request.args.get("section", "runlog")
     selected_runlog_test_case_id = parse_positive_int(request.args.get("runlog_test_case_id"), 0)
     if active_section not in valid_sections:
@@ -1153,6 +1184,27 @@ def admin_page():
                 db.session.delete(user_obj)
                 db.session.commit()
                 flash("Användare och tillhörande data raderad")
+
+        if action == "create_tag":
+            name = request.form.get("name", "").strip()
+            if not name:
+                flash("Taggnamn krävs")
+            elif Tag.query.filter(db.func.lower(Tag.name) == name.lower()).first():
+                flash("Taggen finns redan")
+            else:
+                db.session.add(Tag(name=name))
+                db.session.commit()
+                flash("Tagg skapad")
+
+        if action == "delete_tag":
+            tag_id = parse_positive_int(request.form.get("tag_id"), 0)
+            tag = Tag.query.get(tag_id)
+            if not tag:
+                flash("Tagg hittades inte")
+            else:
+                db.session.delete(tag)
+                db.session.commit()
+                flash("Tagg raderad")
 
         if action == "create_token":
             owner_id = parse_positive_int(request.form.get("owner_id"), 0)
@@ -1220,6 +1272,7 @@ def admin_page():
 
     users = User.query.order_by(User.username.asc()).all()
     tokens = ApiToken.query.order_by(ApiToken.created_at.desc()).all()
+    tags = Tag.query.order_by(Tag.name.asc()).all()
     runlog_checks = (
         db.session.query(TestCase.id, TestCase.name, User.username.label("owner_name"))
         .join(User, TestCase.owner_id == User.id)
@@ -1250,6 +1303,7 @@ def admin_page():
         active_section=active_section,
         runlog_checks=runlog_checks,
         selected_runlog_test_case_id=selected_runlog_test_case_id,
+        tags=tags,
     )
 
 
@@ -1326,6 +1380,7 @@ def edit_test_case(test_case_id):
         selenium_test_id = request.form.get("selenium_test_id", "").strip()
         base_url = request.form.get("base_url", "").strip()
         active = request.form.get("active") == "on"
+        selected_tag_ids = parse_tag_ids(request.form.getlist("tag_ids"))
 
         if not name:
             flash("Namn krävs")
@@ -1345,6 +1400,7 @@ def edit_test_case(test_case_id):
         if selenium_test_id:
             test_case.selenium_test_id = selenium_test_id
         test_case.active = active
+        test_case.tags = Tag.query.filter(Tag.id.in_(selected_tag_ids)).all() if selected_tag_ids else []
         db.session.commit()
 
         if base_url:
@@ -1377,6 +1433,7 @@ def edit_test_case(test_case_id):
         base_url=base_url,
         command_options=SUPPORTED_COMMAND_OPTIONS,
         unsupported_commands=unsupported,
+        tags=Tag.query.order_by(Tag.name.asc()).all(),
     )
 
 
@@ -1521,6 +1578,25 @@ def docu_openapi():
                         "responses": {"200": {"description": "Lista"}, "401": {"description": "Unauthorized"}},
                     }
                 },
+                "/api/tags": {
+                    "get": {
+                        "summary": "Lista taggar",
+                        "responses": {"200": {"description": "Lista"}, "401": {"description": "Unauthorized"}},
+                    },
+                    "post": {
+                        "summary": "Skapa tagg (admin)",
+                        "responses": {"201": {"description": "Created"}, "403": {"description": "Admin required"}},
+                    }
+                },
+                "/api/tags/{id}": {
+                    "delete": {
+                        "summary": "Radera tagg (admin)",
+                        "parameters": [
+                            {"name": "id", "in": "path", "required": True, "schema": {"type": "integer"}}
+                        ],
+                        "responses": {"200": {"description": "Deleted"}, "403": {"description": "Admin required"}, "404": {"description": "Not found"}},
+                    }
+                },
                 "/api/tests/{id}/run": {
                     "post": {
                         "summary": "Kör check nu",
@@ -1616,6 +1692,49 @@ def api_test_results(test_case_id):
             "latest_result": serialize_latest_test_run_summary(latest_run),
         }
     )
+
+
+
+
+@app.route("/api/tags", methods=["GET"])
+@api_auth_required
+def api_tags():
+    tags = Tag.query.order_by(Tag.name.asc()).all()
+    return jsonify([{"id": tag.id, "name": tag.name} for tag in tags])
+
+
+@app.route("/api/tags", methods=["POST"])
+@api_auth_required
+def api_create_tag():
+    if not is_admin_user(request.api_user):
+        return jsonify({"error": "Admin required"}), 403
+
+    payload = request.get_json(silent=True) or {}
+    name = str(payload.get("name", "")).strip()
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+    if Tag.query.filter(db.func.lower(Tag.name) == name.lower()).first():
+        return jsonify({"error": "Tag already exists"}), 409
+
+    tag = Tag(name=name)
+    db.session.add(tag)
+    db.session.commit()
+    return jsonify({"id": tag.id, "name": tag.name}), 201
+
+
+@app.route("/api/tags/<int:tag_id>", methods=["DELETE"])
+@api_auth_required
+def api_delete_tag(tag_id):
+    if not is_admin_user(request.api_user):
+        return jsonify({"error": "Admin required"}), 403
+
+    tag = Tag.query.get(tag_id)
+    if not tag:
+        return jsonify({"error": "Tag not found"}), 404
+
+    db.session.delete(tag)
+    db.session.commit()
+    return jsonify({"message": "Tag deleted", "id": tag_id})
 
 
 @app.route("/api/database/maintenance", methods=["POST"])

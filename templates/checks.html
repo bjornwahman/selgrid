@@ -22,6 +22,15 @@
         <label class="form-label">Intervall (minuter)</label>
         <input type="number" class="form-control" name="interval_minutes" value="5" min="1" required>
       </div>
+      <div class="mt-3">
+        <label class="form-label">Taggar</label>
+        <select class="form-select" name="tag_ids" multiple>
+          {% for tag in tags %}
+            <option value="{{ tag.id }}">{{ tag.name }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-text text-muted">Håll Ctrl/Cmd för att välja flera taggar.</div>
+      </div>
       <button class="btn btn-warning mt-3">Spara och schemalägg</button>
     </form>
   </div>
@@ -32,13 +41,22 @@
     <h5 class="mb-3">Hantera checkar</h5>
     <table class="table table-striped align-middle">
       <thead>
-        <tr><th>Namn</th><th>Senaste status</th><th>Intervall</th><th>Varningar</th><th>Åtgärder</th></tr>
+        <tr><th>Namn</th><th>Taggar</th><th>Senaste status</th><th>Intervall</th><th>Varningar</th><th>Åtgärder</th></tr>
       </thead>
       <tbody>
         {% for row in test_rows %}
           {% set run = row.latest_run %}
           <tr>
             <td>{{ row.test.name }}</td>
+            <td>
+              {% if row.test.tags %}
+                {% for tag in row.test.tags|sort(attribute="name") %}
+                  <span class="badge text-bg-info me-1">{{ tag.name }}</span>
+                {% endfor %}
+              {% else %}
+                <span class="text-muted">-</span>
+              {% endif %}
+            </td>
             <td>
               {% if run and run.status == 'success' %}
                 <span class="badge text-bg-success">OK</span>
@@ -65,38 +83,9 @@
               <a href="{{ url_for('test_detail', test_case_id=row.test.id) }}" class="btn btn-sm btn-primary">Detaljer</a>
             </td>
           </tr>
-          {% if row.latest_steps %}
-            <tr>
-              <td colspan="5" class="bg-dark-subtle">
-                <strong>Senaste kommandostatus:</strong>
-                <div class="table-responsive mt-2">
-                  <table class="table table-sm mb-0">
-                    <thead><tr><th>#</th><th>Kommando</th><th>Status</th><th>Info</th></tr></thead>
-                    <tbody>
-                      {% for step in row.latest_steps %}
-                        <tr>
-                          <td>{{ step.step_index }}</td>
-                          <td><code>{{ step.command }}</code></td>
-                          <td>
-                            {% if step.status == 'success' %}
-                              <span class="badge text-bg-success">success</span>
-                            {% elif step.status == 'warning' %}
-                              <span class="badge text-bg-warning text-dark">warning</span>
-                            {% else %}
-                              <span class="badge text-bg-danger">{{ step.status }}</span>
-                            {% endif %}
-                          </td>
-                          <td class="text-muted">{{ step.error_message or '-' }}</td>
-                        </tr>
-                      {% endfor %}
-                    </tbody>
-                  </table>
-                </div>
-              </td>
-            </tr>
-          {% endif %}
+
         {% else %}
-          <tr><td colspan="5">Inga checkar ännu.</td></tr>
+          <tr><td colspan="6">Inga checkar ännu.</td></tr>
         {% endfor %}
       </tbody>
     </table>
