@@ -1081,6 +1081,7 @@ def admin_page():
     retention_setting = get_data_retention_setting()
     valid_sections = {"runlog", "database", "schedule", "users", "tokens"}
     active_section = request.args.get("section", "runlog")
+    selected_runlog_test_case_id = parse_positive_int(request.args.get("runlog_test_case_id"), 0)
     if active_section not in valid_sections:
         active_section = "runlog"
 
@@ -1211,14 +1212,22 @@ def admin_page():
 
     users = User.query.order_by(User.username.asc()).all()
     tokens = ApiToken.query.order_by(ApiToken.created_at.desc()).all()
-    recent_runs = (
+    runlog_checks = (
+        db.session.query(TestCase.id, TestCase.name, User.username.label("owner_name"))
+        .join(User, TestCase.owner_id == User.id)
+        .order_by(TestCase.name.asc(), User.username.asc())
+        .all()
+    )
+
+    recent_runs_query = (
         db.session.query(TestRun, TestCase.name.label("test_name"), User.username.label("owner_name"))
         .join(TestCase, TestRun.test_case_id == TestCase.id)
         .join(User, TestCase.owner_id == User.id)
-        .order_by(TestRun.started_at.desc())
-        .limit(10)
-        .all()
     )
+    if selected_runlog_test_case_id:
+        recent_runs_query = recent_runs_query.filter(TestRun.test_case_id == selected_runlog_test_case_id)
+
+    recent_runs = recent_runs_query.order_by(TestRun.started_at.desc()).limit(10).all()
     next_scheduled_run = get_next_test_case_run_time()
     user_lookup = {user.id: user.username for user in users}
     return render_template(
@@ -1231,6 +1240,8 @@ def admin_page():
         created_token=created_token,
         retention_setting=retention_setting,
         active_section=active_section,
+        runlog_checks=runlog_checks,
+        selected_runlog_test_case_id=selected_runlog_test_case_id,
     )
 
 
