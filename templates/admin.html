@@ -1,7 +1,41 @@
 {% extends "base.html" %}
 {% block content %}
 <h2>Admin</h2>
-<p class="text-muted">Hantera användare och API-tokens.</p>
+<p class="text-muted">Hantera användare, API-tokens och databasunderhåll.</p>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5>Databasunderhåll</h5>
+    <p class="text-muted mb-3">Rensa checkdata (grafdata, körhistorik och stegmetrik) som är äldre än valt antal dagar.</p>
+    <form method="post" class="row g-3" onsubmit="return confirm('Rensa historisk checkdata enligt antal dagar?');">
+      <input type="hidden" name="action" value="manual_cleanup">
+      <div class="col-md-4">
+        <label class="form-label">Behåll data i antal dagar</label>
+        <input class="form-control" type="number" name="days_to_keep" min="1" value="30" required>
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <button class="btn btn-outline-danger w-100">Kör underhåll nu</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5>Schemalagd datarensning</h5>
+    <p class="text-muted mb-3">Styr hur många månader checkdata ska sparas. Körs automatiskt varje natt.</p>
+    <form method="post" class="row g-3">
+      <input type="hidden" name="action" value="update_retention_months">
+      <div class="col-md-4">
+        <label class="form-label">Månader att behålla checkdata</label>
+        <input class="form-control" type="number" name="months_to_keep" min="1" value="{{ retention_setting.months_to_keep }}" required>
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <button class="btn btn-warning w-100">Spara schema</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 {% if created_token %}
   <div class="alert alert-warning">

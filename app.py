@@ -6,7 +6,7 @@ import secrets
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from json import JSONDecodeError
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
@@ -308,6 +308,11 @@ class StepMetric(db.Model):
     error_message = db.Column(db.Text)
 
 
+class DataRetentionSetting(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    months_to_keep = db.Column(db.Integer, nullable=False, default=6)
+
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -439,6 +444,52 @@ def parse_positive_int(raw_value, default_value):
         return max(int(raw_value), 1)
     except (TypeError, ValueError):
         return default_value
+
+
+def get_data_retention_setting():
+    setting = DataRetentionSetting.query.first()
+    if setting:
+        return setting
+
+    setting = DataRetentionSetting(months_to_keep=6)
+    db.session.add(setting)
+    db.session.commit()
+    return setting
+
+
+def purge_checkdata_older_than(cutoff_datetime: datetime):
+    old_run_ids_query = db.session.query(TestRun.id).filter(TestRun.started_at < cutoff_datetime)
+    deleted_step_metrics = StepMetric.query.filter(StepMetric.test_run_id.in_(old_run_ids_query)).delete(
+        synchronize_session=False
+    )
+    deleted_runs = TestRun.query.filter(TestRun.started_at < cutoff_datetime).delete(synchronize_session=False)
+    db.session.commit()
+    return deleted_runs, deleted_step_metrics
+
+
+def run_scheduled_retention_cleanup():
+    with app.app_context():
+        setting = get_data_retention_setting()
+        months_to_keep = max(int(setting.months_to_keep or 1), 1)
+        cutoff_datetime = datetime.utcnow() - timedelta(days=months_to_keep * 30)
+        deleted_runs, deleted_step_metrics = purge_checkdata_older_than(cutoff_datetime)
+        app.logger.info(
+            "Scheduled cleanup complete. months_to_keep=%s deleted_runs=%s deleted_step_metrics=%s",
+            months_to_keep,
+            deleted_runs,
+            deleted_step_metrics,
+        )
+
+
+def ensure_retention_cleanup_job():
+    scheduler.add_job(
+        run_scheduled_retention_cleanup,
+        trigger="cron",
+        hour=2,
+        minute=0,
+        id="retention_cleanup",
+        replace_existing=True,
+    )
 
 
 def is_admin_user(user):
@@ -989,6 +1040,7 @@ def admin_page():
         return redirect(url_for("dashboard"))
 
     created_token = None
+    retention_setting = get_data_retention_setting()
 
     if request.method == "POST":
         action = request.form.get("action", "")
@@ -1083,10 +1135,32 @@ def admin_page():
                 db.session.commit()
                 flash("Token raderad")
 
+        if action == "manual_cleanup":
+            days_to_keep = parse_positive_int(request.form.get("days_to_keep"), 30)
+            cutoff_datetime = datetime.utcnow() - timedelta(days=days_to_keep)
+            deleted_runs, deleted_step_metrics = purge_checkdata_older_than(cutoff_datetime)
+            flash(
+                f"Databasunderhåll klart. Raderade {deleted_runs} körningar och {deleted_step_metrics} stegmetrik-poster äldre än {days_to_keep} dagar."
+            )
+
+        if action == "update_retention_months":
+            months_to_keep = parse_positive_int(request.form.get("months_to_keep"), retention_setting.months_to_keep)
+            retention_setting.months_to_keep = months_to_keep
+            db.session.commit()
+            ensure_retention_cleanup_job()
+            flash(f"Schemalagd datarensning uppdaterad till att behålla {months_to_keep} månader checkdata")
+
     users = User.query.order_by(User.username.asc()).all()
     tokens = ApiToken.query.order_by(ApiToken.created_at.desc()).all()
     user_lookup = {user.id: user.username for user in users}
-    return render_template("admin.html", users=users, tokens=tokens, user_lookup=user_lookup, created_token=created_token)
+    return render_template(
+        "admin.html",
+        users=users,
+        tokens=tokens,
+        user_lookup=user_lookup,
+        created_token=created_token,
+        retention_setting=retention_setting,
+    )
 
 
 @app.route("/test/<int:test_case_id>/edit", methods=["GET", "POST"], endpoint="edit_test_case")
@@ -1434,8 +1508,10 @@ with app.app_context():
     db.create_all()
     ensure_api_token_value_column()
     ensure_default_admin_user()
+    get_data_retention_setting()
     if not scheduler.running:
         scheduler.start()
+    ensure_retention_cleanup_job()
     for case in TestCase.query.filter_by(active=True).all():
         schedule_test_case(case)
 
