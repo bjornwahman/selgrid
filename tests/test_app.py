@@ -386,10 +386,70 @@ def test_test_detail_chart_labels_do_not_include_seconds():
         )
         selgrid_app.db.session.commit()
 
-    response = client.get(f"/test/{case_id}")
+    response = client.get(f"/test/{case_id}?trend_interval=7d")
     assert response.status_code == 200
     assert b'const labels = ["2026-02-28 12:57"]' in response.data
 
+
+
+
+def test_test_detail_trend_defaults_to_last_24_hours_and_supports_intervals():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+    client = selgrid_app.app.test_client()
+    register_and_login(client)
+
+    payload = build_side_payload()
+    client.post(
+        "/checks",
+        data={
+            "interval_minutes": "5",
+            "side_file": (io.BytesIO(json.dumps(payload).encode("utf-8")), "demo.side"),
+        },
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+
+    now = selgrid_app.datetime.utcnow()
+    within_24h = now - selgrid_app.timedelta(hours=23)
+    older_than_24h = now - selgrid_app.timedelta(hours=25)
+
+    with selgrid_app.app.app_context():
+        case = selgrid_app.TestCase.query.first()
+        case_id = case.id
+        selgrid_app.db.session.add_all([
+            selgrid_app.TestRun(
+                test_case_id=case.id,
+                started_at=older_than_24h,
+                finished_at=older_than_24h,
+                status="success",
+                total_duration_ms=1200,
+            ),
+            selgrid_app.TestRun(
+                test_case_id=case.id,
+                started_at=within_24h,
+                finished_at=within_24h,
+                status="success",
+                total_duration_ms=800,
+            ),
+        ])
+        selgrid_app.db.session.commit()
+
+    default_response = client.get(f"/test/{case_id}")
+    assert default_response.status_code == 200
+    assert b'const durations = [800]' in default_response.data
+
+    seven_day_response = client.get(f"/test/{case_id}?trend_interval=7d")
+    assert seven_day_response.status_code == 200
+    assert b'const durations = [1200, 800]' in seven_day_response.data
+
+    all_time_response = client.get(f"/test/{case_id}?trend_interval=all")
+    assert all_time_response.status_code == 200
+    assert b'const durations = [1200, 800]' in all_time_response.data
+
+    invalid_interval_response = client.get(f"/test/{case_id}?trend_interval=invalid")
+    assert invalid_interval_response.status_code == 200
+    assert b'const durations = [800]' in invalid_interval_response.data
 
 def test_global_error_handler_returns_500_page():
     with selgrid_app.app.test_request_context("/"):
