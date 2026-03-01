@@ -51,7 +51,7 @@
             <td>
               {% if row.test.tags %}
                 {% for tag in row.test.tags|sort(attribute="name") %}
-                  <span class="badge me-1" style="background-color: {{ tag.color }}; color: #fff;">{{ tag.name }}</span>
+                  <span class="tag-badge me-1" style="background-color: {{ tag.color }}; color: #fff;">{{ tag.name }}</span>
                 {% endfor %}
               {% else %}
                 <span class="text-muted">-</span>

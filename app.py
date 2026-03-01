@@ -2,7 +2,6 @@ import hashlib
 import json
 import logging
 import os
-import re
 import secrets
 import time
 import urllib.error
@@ -284,12 +283,38 @@ def ensure_tag_color_column():
     db.session.commit()
 
 
+TAG_COLOR_OPTIONS = [
+    {"name": "Turkos", "value": "#0dcaf0"},
+    {"name": "Blå", "value": "#0d6efd"},
+    {"name": "Indigo", "value": "#6610f2"},
+    {"name": "Lila", "value": "#6f42c1"},
+    {"name": "Rosa", "value": "#d63384"},
+    {"name": "Röd", "value": "#dc3545"},
+    {"name": "Orange", "value": "#fd7e14"},
+    {"name": "Gul", "value": "#ffc107"},
+    {"name": "Grön", "value": "#198754"},
+    {"name": "Grå", "value": "#6c757d"},
+]
+TAG_COLOR_VALUES = {option["value"] for option in TAG_COLOR_OPTIONS}
+DEFAULT_TAG_COLOR = TAG_COLOR_OPTIONS[0]["value"]
+
+
+def normalize_existing_tag_colors():
+    has_changes = False
+    for tag in Tag.query.all():
+        if tag.color not in TAG_COLOR_VALUES:
+            tag.color = DEFAULT_TAG_COLOR
+            has_changes = True
+    if has_changes:
+        db.session.commit()
+
+
 def normalize_tag_color(raw_color):
     color = str(raw_color or "").strip().lower()
     if not color:
-        return "#0dcaf0"
-    if not re.fullmatch(r"#[0-9a-f]{6}", color):
-        raise ValueError("Taggfärg måste vara i formatet #RRGGBB")
+        return DEFAULT_TAG_COLOR
+    if color not in TAG_COLOR_VALUES:
+        raise ValueError("Ogiltig taggfärg. Välj en av de fördefinierade färgerna.")
     return color
 
 
@@ -1334,6 +1359,7 @@ def admin_page():
         runlog_checks=runlog_checks,
         selected_runlog_test_case_id=selected_runlog_test_case_id,
         tags=tags,
+        tag_color_options=TAG_COLOR_OPTIONS,
     )
 
 
@@ -1821,6 +1847,7 @@ with app.app_context():
     db.create_all()
     ensure_api_token_value_column()
     ensure_tag_color_column()
+    normalize_existing_tag_colors()
     ensure_default_admin_user()
     get_data_retention_setting()
     if not scheduler.running:

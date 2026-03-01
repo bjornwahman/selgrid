@@ -1258,7 +1258,7 @@ def test_admin_can_manage_tags_and_api_exposes_tags():
     client.post("/login", data={"username": "admin", "password": "admin"}, follow_redirects=True)
     response = client.post(
         "/admin",
-        data={"section": "tags", "action": "create_tag", "name": "backend", "color": "#123456"},
+        data={"section": "tags", "action": "create_tag", "name": "backend", "color": "#dc3545"},
         follow_redirects=True,
     )
     assert response.status_code == 200
@@ -1266,14 +1266,14 @@ def test_admin_can_manage_tags_and_api_exposes_tags():
 
     create_forbidden = client.post(
         "/api/tags",
-        json={"name": "frontend", "color": "#abcdef"},
+        json={"name": "frontend", "color": "#198754"},
         headers={"Authorization": f"Bearer {user_token}"},
     )
     assert create_forbidden.status_code == 403
 
     create_response = client.post(
         "/api/tags",
-        json={"name": "frontend", "color": "#abcdef"},
+        json={"name": "frontend", "color": "#198754"},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert create_response.status_code == 201
@@ -1283,8 +1283,8 @@ def test_admin_can_manage_tags_and_api_exposes_tags():
     tags_payload = list_response.get_json()
     assert {item["name"] for item in tags_payload} == {"backend", "frontend"}
     color_by_name = {item["name"]: item["color"] for item in tags_payload}
-    assert color_by_name["backend"] == "#123456"
-    assert color_by_name["frontend"] == "#abcdef"
+    assert color_by_name["backend"] == "#dc3545"
+    assert color_by_name["frontend"] == "#198754"
 
 
 def test_tag_color_is_visible_on_checks_and_detail_pages():
@@ -1307,14 +1307,18 @@ def test_tag_color_is_visible_on_checks_and_detail_pages():
     with selgrid_app.app.app_context():
         case = selgrid_app.TestCase.query.first()
         case_id = case.id
-        tag = selgrid_app.Tag(name="kritisk", color="#ff0000")
+        tag = selgrid_app.Tag(name="kritisk", color="#dc3545")
         case.tags.append(tag)
         selgrid_app.db.session.commit()
 
     checks_response = client.get("/checks")
     assert checks_response.status_code == 200
-    assert "background-color: #ff0000".encode("utf-8") in checks_response.data
+    assert "background-color: #dc3545".encode("utf-8") in checks_response.data
 
     detail_response = client.get(f"/test/{case_id}")
     assert detail_response.status_code == 200
-    assert "background-color: #ff0000".encode("utf-8") in detail_response.data
+    assert "background-color: #dc3545".encode("utf-8") in detail_response.data
+
+    dashboard_response = client.get("/dashboard")
+    assert dashboard_response.status_code == 200
+    assert "background-color: #dc3545".encode("utf-8") in dashboard_response.data
