@@ -893,6 +893,12 @@ def run_test_case(test_case_id: int):
                 driver.get(base_url)
 
             for idx, step in enumerate(selenium_test.get("commands", []), start=1):
+                db.session.refresh(run)
+                if run.status == "aborted":
+                    status = "aborted"
+                    error_message = run.error_message or "Avbruten av admin"
+                    break
+
                 step_start = time.perf_counter()
                 command = step.get("command", "")
                 target = replace_runtime_variables(replace_secret(step.get("target", ""), secrets_map), variables_map)
@@ -1062,9 +1068,16 @@ def admin_page():
 
     created_token = None
     retention_setting = get_data_retention_setting()
+    valid_sections = {"runlog", "database", "schedule", "users", "tokens"}
+    active_section = request.args.get("section", "runlog")
+    if active_section not in valid_sections:
+        active_section = "runlog"
 
     if request.method == "POST":
         action = request.form.get("action", "")
+        requested_section = request.form.get("section", "").strip()
+        if requested_section in valid_sections:
+            active_section = requested_section
 
         if action == "create_user":
             username = request.form.get("username", "").strip()
@@ -1164,6 +1177,20 @@ def admin_page():
                 f"Databasunderhåll klart. Raderade {deleted_runs} körningar och {deleted_step_metrics} stegmetrik-poster äldre än {days_to_keep} dagar."
             )
 
+        if action == "cancel_run":
+            run_id = parse_positive_int(request.form.get("run_id"), 0)
+            run = TestRun.query.get(run_id)
+            if not run:
+                flash("Körning hittades inte")
+            elif run.status != "running":
+                flash("Endast pågående körningar kan avbrytas")
+            else:
+                run.status = "aborted"
+                run.error_message = "Avbruten av admin"
+                run.finished_at = datetime.utcnow()
+                db.session.commit()
+                flash("Körning avbröts")
+
         if action == "update_retention_months":
             months_to_keep = parse_positive_int(request.form.get("months_to_keep"), retention_setting.months_to_keep)
             retention_setting.months_to_keep = months_to_keep
@@ -1192,6 +1219,7 @@ def admin_page():
         user_lookup=user_lookup,
         created_token=created_token,
         retention_setting=retention_setting,
+        active_section=active_section,
     )
 
 

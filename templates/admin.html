@@ -4,13 +4,14 @@
 <p class="text-muted">Hantera användare, API-tokens, databas och körlogg.</p>
 
 <div class="btn-group flex-wrap mb-4" role="group" aria-label="Adminsektioner">
-  <a class="btn btn-outline-secondary" href="#admin-users">Användare</a>
-  <a class="btn btn-outline-secondary" href="#admin-database">Databas</a>
-  <a class="btn btn-outline-secondary" href="#admin-schedule">Schema</a>
-  <a class="btn btn-outline-secondary" href="#admin-tokens">API-tokens</a>
-  <a class="btn btn-outline-secondary" href="#admin-runlog">Körlogg</a>
+  <a class="btn {{ 'btn-warning' if active_section == 'users' else 'btn-outline-secondary' }}" href="{{ url_for('admin_page', section='users') }}">Användare</a>
+  <a class="btn {{ 'btn-warning' if active_section == 'database' else 'btn-outline-secondary' }}" href="{{ url_for('admin_page', section='database') }}">Databas</a>
+  <a class="btn {{ 'btn-warning' if active_section == 'schedule' else 'btn-outline-secondary' }}" href="{{ url_for('admin_page', section='schedule') }}">Schema</a>
+  <a class="btn {{ 'btn-warning' if active_section == 'tokens' else 'btn-outline-secondary' }}" href="{{ url_for('admin_page', section='tokens') }}">API-tokens</a>
+  <a class="btn {{ 'btn-warning' if active_section == 'runlog' else 'btn-outline-secondary' }}" href="{{ url_for('admin_page', section='runlog') }}">Körlogg</a>
 </div>
 
+{% if active_section == 'runlog' %}
 <div class="card mb-4" id="admin-runlog">
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
@@ -34,6 +35,7 @@
             <th>Status</th>
             <th>Tid (ms)</th>
             <th>Fel</th>
+            <th>Åtgärd</th>
           </tr>
         </thead>
         <tbody>
@@ -53,21 +55,36 @@
               </td>
               <td>{{ run.total_duration_ms or 0 }}</td>
               <td class="text-muted">{{ run.error_message or '-' }}</td>
+              <td>
+                {% if run.status == 'running' %}
+                  <form method="post" onsubmit="return confirm('Avbryt pågående körning?');">
+                    <input type="hidden" name="section" value="runlog">
+                    <input type="hidden" name="action" value="cancel_run">
+                    <input type="hidden" name="run_id" value="{{ run.id }}">
+                    <button class="btn btn-sm btn-outline-danger">Avbryt</button>
+                  </form>
+                {% else %}
+                  <span class="text-muted">-</span>
+                {% endif %}
+              </td>
             </tr>
           {% else %}
-            <tr><td colspan="6" class="text-muted">Inga körningar ännu.</td></tr>
+            <tr><td colspan="7" class="text-muted">Inga körningar ännu.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   </div>
 </div>
+{% endif %}
 
+{% if active_section == 'database' %}
 <div class="card mb-4" id="admin-database">
   <div class="card-body">
     <h5>Databasunderhåll</h5>
     <p class="text-muted mb-3">Rensa checkdata (grafdata, körhistorik och stegmetrik) som är äldre än valt antal dagar.</p>
     <form method="post" class="row g-3" onsubmit="return confirm('Rensa historisk checkdata enligt antal dagar?');">
+      <input type="hidden" name="section" value="database">
       <input type="hidden" name="action" value="manual_cleanup">
       <div class="col-md-4">
         <label class="form-label">Behåll data i antal dagar</label>
@@ -79,12 +96,15 @@
     </form>
   </div>
 </div>
+{% endif %}
 
+{% if active_section == 'schedule' %}
 <div class="card mb-4" id="admin-schedule">
   <div class="card-body">
     <h5>Schemalagd datarensning</h5>
     <p class="text-muted mb-3">Styr hur många månader checkdata ska sparas. Körs automatiskt varje natt.</p>
     <form method="post" class="row g-3">
+      <input type="hidden" name="section" value="schedule">
       <input type="hidden" name="action" value="update_retention_months">
       <div class="col-md-4">
         <label class="form-label">Månader att behålla checkdata</label>
@@ -96,18 +116,14 @@
     </form>
   </div>
 </div>
-
-{% if created_token %}
-  <div class="alert alert-warning">
-    <strong>Ny token:</strong> <code>{{ created_token }}</code><br>
-    Token finns också sparad i listan nedan.
-  </div>
 {% endif %}
 
+{% if active_section == 'users' %}
 <div class="card mb-4" id="admin-users">
   <div class="card-body">
     <h5>Lägg till användare</h5>
     <form method="post" class="row g-3">
+      <input type="hidden" name="section" value="users">
       <input type="hidden" name="action" value="create_user">
       <div class="col-md-5">
         <label class="form-label">Användarnamn</label>
@@ -135,6 +151,7 @@
           <tr>
             <td>
               <form method="post" class="d-flex gap-2">
+                <input type="hidden" name="section" value="users">
                 <input type="hidden" name="action" value="update_user">
                 <input type="hidden" name="user_id" value="{{ user.id }}">
                 <input class="form-control" name="username" value="{{ user.username }}" required>
@@ -145,6 +162,7 @@
               </form>
               {% if user.username != 'admin' %}
                 <form method="post" onsubmit="return confirm('Radera användare och all tillhörande data?');">
+                  <input type="hidden" name="section" value="users">
                   <input type="hidden" name="action" value="delete_user">
                   <input type="hidden" name="user_id" value="{{ user.id }}">
                   <button class="btn btn-sm btn-outline-danger">Radera</button>
@@ -160,11 +178,21 @@
     </div>
   </div>
 </div>
+{% endif %}
+
+{% if active_section == 'tokens' %}
+{% if created_token %}
+  <div class="alert alert-warning">
+    <strong>Ny token:</strong> <code>{{ created_token }}</code><br>
+    Token finns också sparad i listan nedan.
+  </div>
+{% endif %}
 
 <div class="card mb-4" id="admin-tokens">
   <div class="card-body">
     <h5>Skapa token</h5>
     <form method="post" class="row g-3">
+      <input type="hidden" name="section" value="tokens">
       <input type="hidden" name="action" value="create_token">
       <div class="col-md-4">
         <label class="form-label">Ägare</label>
@@ -206,6 +234,7 @@
           <td>{{ token.last_used_at or '-' }}</td>
           <td class="text-end">
             <form method="post" onsubmit="return confirm('Radera token?');">
+              <input type="hidden" name="section" value="tokens">
               <input type="hidden" name="action" value="delete_token">
               <input type="hidden" name="token_id" value="{{ token.id }}">
               <button class="btn btn-sm btn-outline-danger">Radera</button>
@@ -219,4 +248,5 @@
     </table>
   </div>
 </div>
+{% endif %}
 {% endblock %}
