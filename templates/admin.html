@@ -287,6 +287,10 @@
           {% endfor %}
         </select>
       </div>
+      <div class="col-12">
+        <label class="form-label">Beskrivning (valfritt)</label>
+        <textarea class="form-control" name="description" rows="2" placeholder="Kort beskrivning av taggens syfte"></textarea>
+      </div>
       <div class="col-md-3 d-flex align-items-end">
         <button class="btn btn-warning w-100">Skapa</button>
       </div>
@@ -298,14 +302,31 @@
   <div class="card-body">
     <h5>Befintliga taggar</h5>
     <table class="table table-striped align-middle mb-0">
-      <thead><tr><th>Namn</th><th>Färg</th><th class="text-end">Åtgärd</th></tr></thead>
+      <thead><tr><th>Namn</th><th>Färg</th><th>Beskrivning</th><th class="text-end">Åtgärd</th></tr></thead>
       <tbody>
       {% for tag in tags %}
         <tr>
-          <td>{{ tag.name }}</td>
-          <td><span class="tag-badge" style="background-color: {{ tag.color }}; color: #fff;">{{ tag.color }}</span></td>
+          <td>
+            <input form="tag-edit-{{ tag.id }}" class="form-control" name="name" value="{{ tag.name }}" required>
+          </td>
+          <td>
+            <select form="tag-edit-{{ tag.id }}" class="form-select" name="color" required>
+              {% for color_option in tag_color_options %}
+                <option value="{{ color_option.value }}" {% if tag.color == color_option.value %}selected{% endif %}>{{ color_option.name }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <textarea form="tag-edit-{{ tag.id }}" class="form-control" name="description" rows="2" placeholder="Valfri beskrivning">{{ tag.description or '' }}</textarea>
+          </td>
           <td class="text-end">
-            <form method="post" onsubmit="return confirm('Radera tagg?');">
+            <form id="tag-edit-{{ tag.id }}" method="post" class="d-inline-block me-2">
+              <input type="hidden" name="section" value="tags">
+              <input type="hidden" name="action" value="update_tag">
+              <input type="hidden" name="tag_id" value="{{ tag.id }}">
+              <button class="btn btn-sm btn-outline-warning">Spara</button>
+            </form>
+            <form method="post" class="d-inline-block" onsubmit="return confirm('Radera tagg?');">
               <input type="hidden" name="section" value="tags">
               <input type="hidden" name="action" value="delete_tag">
               <input type="hidden" name="tag_id" value="{{ tag.id }}">
@@ -314,7 +335,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="3" class="text-muted">Inga taggar ännu.</td></tr>
+        <tr><td colspan="4" class="text-muted">Inga taggar ännu.</td></tr>
       {% endfor %}
       </tbody>
     </table>
