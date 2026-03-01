@@ -1007,6 +1007,75 @@ def test_admin_page_shows_run_log_and_next_scheduled_run():
     assert b"owner" in response.data
 
 
+def test_admin_runlog_can_be_filtered_by_check():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+    client = selgrid_app.app.test_client()
+
+    with selgrid_app.app.app_context():
+        admin = selgrid_app.User(
+            username="admin",
+            password_hash=selgrid_app.generate_password_hash("admin"),
+        )
+        owner = selgrid_app.User(
+            username="owner",
+            password_hash=selgrid_app.generate_password_hash("owner"),
+        )
+        selgrid_app.db.session.add_all([admin, owner])
+        selgrid_app.db.session.commit()
+
+        first_case = selgrid_app.TestCase(
+            owner_id=owner.id,
+            name="Check A",
+            file_path="/tmp/a.side",
+            interval_minutes=15,
+            selenium_test_id="t-a",
+            active=True,
+        )
+        second_case = selgrid_app.TestCase(
+            owner_id=owner.id,
+            name="Check B",
+            file_path="/tmp/b.side",
+            interval_minutes=15,
+            selenium_test_id="t-b",
+            active=True,
+        )
+        selgrid_app.db.session.add_all([first_case, second_case])
+        selgrid_app.db.session.commit()
+
+        selgrid_app.db.session.add_all(
+            [
+                selgrid_app.TestRun(
+                    test_case_id=first_case.id,
+                    started_at=selgrid_app.datetime.utcnow(),
+                    finished_at=selgrid_app.datetime.utcnow(),
+                    status="success",
+                    total_duration_ms=100,
+                ),
+                selgrid_app.TestRun(
+                    test_case_id=second_case.id,
+                    started_at=selgrid_app.datetime.utcnow(),
+                    finished_at=selgrid_app.datetime.utcnow(),
+                    status="failed",
+                    total_duration_ms=200,
+                ),
+            ]
+        )
+        selgrid_app.db.session.commit()
+
+        first_case_id = first_case.id
+
+    client.post("/login", data={"username": "admin", "password": "admin"}, follow_redirects=True)
+    response = client.get(f"/admin?section=runlog&runlog_test_case_id={first_case_id}")
+
+    assert response.status_code == 200
+    assert b"V\xc3\xa4lj check" in response.data
+    assert b"Check A" in response.data
+    assert b"Check B" in response.data
+    assert b">Success<" in response.data
+    assert b">Failed<" not in response.data
+
+
 def test_admin_section_filter_shows_only_selected_panel():
     selgrid_app.app.config.update(TESTING=True)
     reset_db()

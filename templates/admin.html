@@ -25,6 +25,23 @@
         {% endif %}
       </span>
     </div>
+    <form method="get" class="row g-2 align-items-end mb-3">
+      <input type="hidden" name="section" value="runlog">
+      <div class="col-md-6 col-lg-4">
+        <label class="form-label" for="runlogTestCaseFilter">Välj check</label>
+        <select class="form-select" id="runlogTestCaseFilter" name="runlog_test_case_id" onchange="this.form.submit()">
+          <option value="0" {% if not selected_runlog_test_case_id %}selected{% endif %}>Alla checks</option>
+          {% for check in runlog_checks %}
+            <option value="{{ check.id }}" {% if selected_runlog_test_case_id == check.id %}selected{% endif %}>
+              {{ check.name }} ({{ check.owner_name }})
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-auto">
+        <button class="btn btn-outline-secondary" type="submit">Filtrera</button>
+      </div>
+    </form>
     <div class="table-responsive">
       <table class="table table-striped align-middle mb-0">
         <thead>
