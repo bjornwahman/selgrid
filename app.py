@@ -576,6 +576,8 @@ def inject_topbar_health():
 def create_test_case_from_request(owner_id: int):
     upload = request.files.get("side_file")
     side_raw = request.form.get("side_raw", "").strip()
+    builder_name = request.form.get("builder_name", "").strip()
+    builder_url = request.form.get("builder_url", "").strip()
     interval = parse_positive_int(request.form.get("interval_minutes", "5"), 5)
     selected_test = request.form.get("selenium_test_id", "")
 
@@ -594,6 +596,59 @@ def create_test_case_from_request(owner_id: int):
             raise ValueError("Rå .side-data är inte giltig JSON") from exc
         path = UPLOAD_DIR / f"{int(time.time())}-pasted.side"
         path.write_text(side_raw, encoding="utf-8")
+    elif builder_name:
+        commands = []
+        for command, target, value in zip(
+            request.form.getlist("command[]"),
+            request.form.getlist("target[]"),
+            request.form.getlist("value[]"),
+        ):
+            if not command.strip() and not target.strip() and not value.strip():
+                continue
+            commands.append(
+                {
+                    "id": f"cmd-{int(time.time() * 1000)}-{len(commands)}",
+                    "command": command.strip(),
+                    "target": target.strip(),
+                    "value": value.strip(),
+                }
+            )
+
+        if not commands:
+            raise ValueError("Lägg till minst ett steg i script-byggaren")
+
+        if builder_url and not builder_url.startswith(("http://", "https://")):
+            raise ValueError("URL måste börja med http:// eller https://")
+
+        test_id = f"test-{int(time.time() * 1000)}"
+        side_payload = {
+            "id": f"project-{int(time.time() * 1000)}",
+            "version": "2.0",
+            "name": builder_name,
+            "urls": [builder_url] if builder_url else [],
+            "tests": [
+                {
+                    "id": test_id,
+                    "name": builder_name,
+                    "commands": commands,
+                }
+            ],
+            "suites": [
+                {
+                    "id": f"suite-{int(time.time() * 1000)}",
+                    "name": f"{builder_name} suite",
+                    "persistSession": False,
+                    "parallel": False,
+                    "timeout": 300,
+                    "tests": [test_id],
+                }
+            ],
+        }
+
+        path = UPLOAD_DIR / f"{int(time.time())}-builder.side"
+        path.write_text(json.dumps(side_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        selected_test = test_id
+        source_name = builder_name
     else:
         raise ValueError("Ladda upp en .side-fil eller klistra in rå JSON")
 
@@ -1003,6 +1058,14 @@ def build_dashboard_rows(owner_id: int):
                 "test": test_case,
                 "unsupported": unsupported,
                 "latest_run": latest_run,
+                "latest_steps": (
+                    StepMetric.query.filter_by(test_run_id=latest_run.id)
+                    .order_by(StepMetric.step_index.asc())
+                    .limit(12)
+                    .all()
+                    if latest_run
+                    else []
+                ),
                 "recent_runs": list(reversed(recent_runs)),
             }
         )
@@ -1438,6 +1501,9 @@ def run_now(test_case_id):
     test_case = TestCase.query.filter_by(id=test_case_id, owner_id=current_user.id).first_or_404()
     run_test_case(test_case.id)
     flash("Test körning startad")
+    next_page = request.form.get("next", "").strip()
+    if next_page == "checks":
+        return redirect(url_for("checks_page"))
     return redirect(url_for("test_detail", test_case_id=test_case.id))
 
 
