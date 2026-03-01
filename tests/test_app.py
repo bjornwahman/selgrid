@@ -702,3 +702,113 @@ def test_dashboard_shows_run_trend_bars():
     assert "Senaste 3 körningar".encode("utf-8") in response.data
     assert b"run-trend-bar success" in response.data
     assert b"run-trend-bar failed" in response.data
+
+
+def test_admin_manual_cleanup_removes_old_checkdata():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+    client = selgrid_app.app.test_client()
+
+    with selgrid_app.app.app_context():
+        admin = selgrid_app.User(
+            username="admin",
+            password_hash=selgrid_app.generate_password_hash("admin"),
+        )
+        selgrid_app.db.session.add(admin)
+        selgrid_app.db.session.commit()
+
+        case = selgrid_app.TestCase(
+            owner_id=admin.id,
+            name="cleanup-check",
+            file_path="/tmp/demo.side",
+            interval_minutes=5,
+            selenium_test_id="t-1",
+            active=True,
+        )
+        selgrid_app.db.session.add(case)
+        selgrid_app.db.session.commit()
+
+        old_run = selgrid_app.TestRun(
+            test_case_id=case.id,
+            started_at=selgrid_app.datetime.utcnow() - selgrid_app.timedelta(days=40),
+            finished_at=selgrid_app.datetime.utcnow() - selgrid_app.timedelta(days=40),
+            status="success",
+            total_duration_ms=10,
+        )
+        recent_run = selgrid_app.TestRun(
+            test_case_id=case.id,
+            started_at=selgrid_app.datetime.utcnow() - selgrid_app.timedelta(days=5),
+            finished_at=selgrid_app.datetime.utcnow() - selgrid_app.timedelta(days=5),
+            status="success",
+            total_duration_ms=10,
+        )
+        selgrid_app.db.session.add_all([old_run, recent_run])
+        selgrid_app.db.session.commit()
+
+        selgrid_app.db.session.add_all(
+            [
+                selgrid_app.StepMetric(
+                    test_run_id=old_run.id,
+                    step_index=1,
+                    command="open",
+                    target="/",
+                    value="",
+                    duration_ms=10,
+                    status="success",
+                ),
+                selgrid_app.StepMetric(
+                    test_run_id=recent_run.id,
+                    step_index=1,
+                    command="open",
+                    target="/",
+                    value="",
+                    duration_ms=10,
+                    status="success",
+                ),
+            ]
+        )
+        selgrid_app.db.session.commit()
+
+    client.post("/login", data={"username": "admin", "password": "admin"}, follow_redirects=True)
+
+    response = client.post(
+        "/admin",
+        data={"action": "manual_cleanup", "days_to_keep": "30"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert "Databasunderhåll klart".encode("utf-8") in response.data
+
+    with selgrid_app.app.app_context():
+        assert selgrid_app.TestRun.query.count() == 1
+        assert selgrid_app.StepMetric.query.count() == 1
+
+
+def test_admin_can_update_retention_months():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+    client = selgrid_app.app.test_client()
+
+    with selgrid_app.app.app_context():
+        selgrid_app.db.session.add(
+            selgrid_app.User(
+                username="admin",
+                password_hash=selgrid_app.generate_password_hash("admin"),
+            )
+        )
+        selgrid_app.db.session.commit()
+
+    client.post("/login", data={"username": "admin", "password": "admin"}, follow_redirects=True)
+
+    response = client.post(
+        "/admin",
+        data={"action": "update_retention_months", "months_to_keep": "9"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert "Schemalagd datarensning uppdaterad".encode("utf-8") in response.data
+
+    with selgrid_app.app.app_context():
+        setting = selgrid_app.DataRetentionSetting.query.first()
+        assert setting is not None
+        assert setting.months_to_keep == 9
