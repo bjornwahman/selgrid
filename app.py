@@ -728,6 +728,17 @@ def serialize_latest_test_run_summary(test_run: TestRun | None):
     }
 
 
+def parse_cleanup_days(raw_value, default_value=30):
+    try:
+        days_to_keep = int(raw_value)
+    except (TypeError, ValueError):
+        return False, default_value
+
+    if days_to_keep < 1:
+        return False, default_value
+    return True, days_to_keep
+
+
 def perform_command(driver, command, target, value, variables_map=None):
     variables_map = variables_map if variables_map is not None else {}
 
@@ -1170,7 +1181,7 @@ def admin_page():
                 flash("Token raderad")
 
         if action == "manual_cleanup":
-            days_to_keep = parse_positive_int(request.form.get("days_to_keep"), 30)
+            _is_valid, days_to_keep = parse_cleanup_days(request.form.get("days_to_keep"), default_value=30)
             cutoff_datetime = datetime.utcnow() - timedelta(days=days_to_keep)
             deleted_runs, deleted_step_metrics = purge_checkdata_older_than(cutoff_datetime)
             flash(
@@ -1487,6 +1498,29 @@ def docu_openapi():
                         "responses": {"200": {"description": "Senaste körning"}, "404": {"description": "Not found"}},
                     }
                 },
+                "/api/database/maintenance": {
+                    "post": {
+                        "summary": "Kör databasunderhåll för checkdata",
+                        "requestBody": {
+                            "required": False,
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "days_to_keep": {"type": "integer", "minimum": 1, "default": 30}
+                                        },
+                                    }
+                                }
+                            },
+                        },
+                        "responses": {
+                            "200": {"description": "Cleanup complete"},
+                            "400": {"description": "Invalid days_to_keep"},
+                            "403": {"description": "Admin required"},
+                        },
+                    }
+                },
             },
         }
     )
@@ -1539,6 +1573,30 @@ def api_test_results(test_case_id):
             "test_id": test_case.id,
             "test_name": test_case.name,
             "latest_result": serialize_latest_test_run_summary(latest_run),
+        }
+    )
+
+
+@app.route("/api/database/maintenance", methods=["POST"])
+@api_auth_required
+def api_database_maintenance():
+    if not is_admin_user(request.api_user):
+        return jsonify({"error": "Admin required"}), 403
+
+    payload = request.get_json(silent=True) or {}
+    is_valid, days_to_keep = parse_cleanup_days(payload.get("days_to_keep"), default_value=30)
+    if not is_valid:
+        return jsonify({"error": "days_to_keep must be an integer >= 1"}), 400
+
+    cutoff_datetime = datetime.utcnow() - timedelta(days=days_to_keep)
+    deleted_runs, deleted_step_metrics = purge_checkdata_older_than(cutoff_datetime)
+
+    return jsonify(
+        {
+            "message": "Databasunderhåll klart",
+            "days_to_keep": days_to_keep,
+            "deleted_runs": deleted_runs,
+            "deleted_step_metrics": deleted_step_metrics,
         }
     )
 

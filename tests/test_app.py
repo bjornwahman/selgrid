@@ -596,6 +596,136 @@ def test_api_results_returns_404_for_missing_or_foreign_test():
     assert response.get_json()["error"] == "Test not found"
 
 
+
+def test_api_database_maintenance_requires_admin_user():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+
+    with selgrid_app.app.app_context():
+        admin = selgrid_app.User(username="admin", password_hash="x")
+        regular = selgrid_app.User(username="regular", password_hash="y")
+        selgrid_app.db.session.add_all([admin, regular])
+        selgrid_app.db.session.commit()
+
+        token = create_api_token_for_user(regular.id, name="regular-token")
+
+    client = selgrid_app.app.test_client()
+    response = client.post(
+        "/api/database/maintenance",
+        json={"days_to_keep": 30},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 403
+    assert response.get_json()["error"] == "Admin required"
+
+
+def test_api_database_maintenance_rejects_invalid_days_to_keep():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+
+    with selgrid_app.app.app_context():
+        admin = selgrid_app.User(username="admin", password_hash="x")
+        selgrid_app.db.session.add(admin)
+        selgrid_app.db.session.commit()
+
+        token = create_api_token_for_user(admin.id, name="admin-token")
+
+    client = selgrid_app.app.test_client()
+    response = client.post(
+        "/api/database/maintenance",
+        json={"days_to_keep": 0},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 400
+    assert "days_to_keep" in response.get_json()["error"]
+
+
+def test_api_database_maintenance_removes_old_checkdata():
+    selgrid_app.app.config.update(TESTING=True)
+    reset_db()
+
+    with selgrid_app.app.app_context():
+        admin = selgrid_app.User(
+            username="admin",
+            password_hash=selgrid_app.generate_password_hash("admin"),
+        )
+        selgrid_app.db.session.add(admin)
+        selgrid_app.db.session.commit()
+
+        case = selgrid_app.TestCase(
+            owner_id=admin.id,
+            name="cleanup-check",
+            file_path="/tmp/demo.side",
+            interval_minutes=5,
+            selenium_test_id="t-1",
+            active=True,
+        )
+        selgrid_app.db.session.add(case)
+        selgrid_app.db.session.commit()
+
+        old_run = selgrid_app.TestRun(
+            test_case_id=case.id,
+            started_at=selgrid_app.datetime.utcnow() - selgrid_app.timedelta(days=45),
+            finished_at=selgrid_app.datetime.utcnow() - selgrid_app.timedelta(days=45),
+            status="success",
+            total_duration_ms=10,
+        )
+        recent_run = selgrid_app.TestRun(
+            test_case_id=case.id,
+            started_at=selgrid_app.datetime.utcnow() - selgrid_app.timedelta(days=5),
+            finished_at=selgrid_app.datetime.utcnow() - selgrid_app.timedelta(days=5),
+            status="success",
+            total_duration_ms=10,
+        )
+        selgrid_app.db.session.add_all([old_run, recent_run])
+        selgrid_app.db.session.commit()
+
+        selgrid_app.db.session.add_all(
+            [
+                selgrid_app.StepMetric(
+                    test_run_id=old_run.id,
+                    step_index=1,
+                    command="open",
+                    target="/",
+                    value="",
+                    duration_ms=10,
+                    status="success",
+                ),
+                selgrid_app.StepMetric(
+                    test_run_id=recent_run.id,
+                    step_index=1,
+                    command="open",
+                    target="/",
+                    value="",
+                    duration_ms=10,
+                    status="success",
+                ),
+            ]
+        )
+        selgrid_app.db.session.commit()
+
+        token = create_api_token_for_user(admin.id, name="admin-token")
+
+    client = selgrid_app.app.test_client()
+    response = client.post(
+        "/api/database/maintenance",
+        json={"days_to_keep": 30},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["message"] == "Databasunderhåll klart"
+    assert payload["deleted_runs"] == 1
+    assert payload["deleted_step_metrics"] == 1
+
+    with selgrid_app.app.app_context():
+        assert selgrid_app.TestRun.query.count() == 1
+        assert selgrid_app.StepMetric.query.count() == 1
+
+
 def test_help_page_contains_sections_and_commands():
     selgrid_app.app.config.update(TESTING=True)
     client = selgrid_app.app.test_client()
