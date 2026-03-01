@@ -31,12 +31,34 @@
       </div>
       <div class="col-12">
         <label class="form-label">Taggar</label>
-        <select class="form-select" name="tag_ids" multiple>
-          {% set selected_tag_ids = test_case.tags|map(attribute='id')|list %}
-          {% for tag in tags %}
-            <option value="{{ tag.id }}" {% if tag.id in selected_tag_ids %}selected{% endif %}>{{ tag.name }}</option>
-          {% endfor %}
-        </select>
+        {% set selected_tag_ids = test_case.tags|map(attribute='id')|list %}
+        <div class="row g-2" id="tag-selector">
+          <div class="col-md-5">
+            <label class="form-label" for="available-tags">Alla taggar</label>
+            <select class="form-select" id="available-tags" multiple size="6">
+              {% for tag in tags %}
+                {% if tag.id not in selected_tag_ids %}
+                  <option value="{{ tag.id }}">{{ tag.name }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-2 d-flex flex-column justify-content-center gap-2">
+            <button class="btn btn-outline-warning" type="button" id="add-tag-button">Lägg till tagg →</button>
+            <button class="btn btn-outline-secondary" type="button" id="remove-tag-button">← Ta bort tagg</button>
+          </div>
+          <div class="col-md-5">
+            <label class="form-label" for="selected-tags">Valda taggar</label>
+            <select class="form-select" id="selected-tags" name="tag_ids" multiple size="6">
+              {% for tag in tags %}
+                {% if tag.id in selected_tag_ids %}
+                  <option value="{{ tag.id }}" selected>{{ tag.name }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-text text-muted">Markera en eller flera taggar och använd knapparna för att flytta mellan listorna.</div>
       </div>
       <div class="col-12">
         <label class="form-label">Bas-URL för scriptet</label>
@@ -147,6 +169,10 @@
   const tableBody = document.getElementById('command-table-body');
   const addRowButton = document.getElementById('add-command-row');
   const rowTemplate = document.getElementById('command-row-template');
+  const availableTagsSelect = document.getElementById('available-tags');
+  const selectedTagsSelect = document.getElementById('selected-tags');
+  const addTagButton = document.getElementById('add-tag-button');
+  const removeTagButton = document.getElementById('remove-tag-button');
   const commandDescriptions = {
     open: 'Öppnar en URL. Om target är relativ, används bas-URL från inställningarna.',
     click: 'Klickar på elementet i target.',
@@ -242,6 +268,26 @@
         alert(`${title}\n\n${explanation}`);
       }
     });
+  }
+
+  function moveSelectedOptions(sourceSelect, targetSelect) {
+    if (!sourceSelect || !targetSelect) return;
+    const selectedOptions = Array.from(sourceSelect.selectedOptions);
+    selectedOptions.forEach((option) => {
+      option.selected = false;
+      targetSelect.appendChild(option);
+    });
+    Array.from(selectedTagsSelect?.options || []).forEach((option) => {
+      option.selected = true;
+    });
+  }
+
+  if (availableTagsSelect && selectedTagsSelect) {
+    addTagButton?.addEventListener('click', () => moveSelectedOptions(availableTagsSelect, selectedTagsSelect));
+    removeTagButton?.addEventListener('click', () => moveSelectedOptions(selectedTagsSelect, availableTagsSelect));
+
+    availableTagsSelect.addEventListener('dblclick', () => moveSelectedOptions(availableTagsSelect, selectedTagsSelect));
+    selectedTagsSelect.addEventListener('dblclick', () => moveSelectedOptions(selectedTagsSelect, availableTagsSelect));
   }
 
   refreshStepIndexes();
