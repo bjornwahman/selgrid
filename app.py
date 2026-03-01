@@ -492,6 +492,27 @@ def ensure_retention_cleanup_job():
     )
 
 
+def to_utc_naive(dt_value: datetime | None):
+    if not dt_value:
+        return None
+    if dt_value.tzinfo is None:
+        return dt_value
+    return dt_value.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def get_next_test_case_run_time():
+    next_run = None
+    for job in scheduler.get_jobs():
+        if not str(job.id).startswith("test-"):
+            continue
+        next_run_time = to_utc_naive(job.next_run_time)
+        if not next_run_time:
+            continue
+        if next_run is None or next_run_time < next_run:
+            next_run = next_run_time
+    return next_run
+
+
 def is_admin_user(user):
     return bool(getattr(user, "is_authenticated", False) and getattr(user, "username", "") == "admin")
 
@@ -1152,11 +1173,22 @@ def admin_page():
 
     users = User.query.order_by(User.username.asc()).all()
     tokens = ApiToken.query.order_by(ApiToken.created_at.desc()).all()
+    recent_runs = (
+        db.session.query(TestRun, TestCase.name.label("test_name"), User.username.label("owner_name"))
+        .join(TestCase, TestRun.test_case_id == TestCase.id)
+        .join(User, TestCase.owner_id == User.id)
+        .order_by(TestRun.started_at.desc())
+        .limit(10)
+        .all()
+    )
+    next_scheduled_run = get_next_test_case_run_time()
     user_lookup = {user.id: user.username for user in users}
     return render_template(
         "admin.html",
         users=users,
         tokens=tokens,
+        recent_runs=recent_runs,
+        next_scheduled_run=next_scheduled_run,
         user_lookup=user_lookup,
         created_token=created_token,
         retention_setting=retention_setting,
