@@ -275,9 +275,13 @@
     <form method="post" class="row g-3">
       <input type="hidden" name="section" value="tags">
       <input type="hidden" name="action" value="create_tag">
-      <div class="col-md-8">
+      <div class="col-md-6">
         <label class="form-label">Taggnamn</label>
         <input class="form-control" name="name" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Färg</label>
+        <input class="form-control form-control-color" type="color" name="color" value="#0dcaf0" title="Välj taggfärg">
       </div>
       <div class="col-md-4 d-flex align-items-end">
         <button class="btn btn-warning w-100">Skapa</button>
@@ -290,11 +294,12 @@
   <div class="card-body">
     <h5>Befintliga taggar</h5>
     <table class="table table-striped align-middle mb-0">
-      <thead><tr><th>Namn</th><th class="text-end">Åtgärd</th></tr></thead>
+      <thead><tr><th>Namn</th><th>Färg</th><th class="text-end">Åtgärd</th></tr></thead>
       <tbody>
       {% for tag in tags %}
         <tr>
           <td>{{ tag.name }}</td>
+          <td><span class="badge" style="background-color: {{ tag.color }}; color: #fff;">{{ tag.color }}</span></td>
           <td class="text-end">
             <form method="post" onsubmit="return confirm('Radera tagg?');">
               <input type="hidden" name="section" value="tags">
@@ -305,7 +310,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="2" class="text-muted">Inga taggar ännu.</td></tr>
+        <tr><td colspan="3" class="text-muted">Inga taggar ännu.</td></tr>
       {% endfor %}
       </tbody>
     </table>

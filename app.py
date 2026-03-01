@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import secrets
 import time
 import urllib.error
@@ -269,6 +270,29 @@ def ensure_api_token_value_column():
     db.session.commit()
 
 
+def ensure_tag_color_column():
+    inspector = db.inspect(db.engine)
+    columns = {column["name"] for column in inspector.get_columns("tag")}
+    if "color" not in columns:
+        db.session.execute(db.text("ALTER TABLE tag ADD COLUMN color VARCHAR(7)"))
+        db.session.commit()
+
+    db.session.execute(
+        db.text("UPDATE tag SET color = :default_color WHERE color IS NULL OR color = ''"),
+        {"default_color": "#0dcaf0"},
+    )
+    db.session.commit()
+
+
+def normalize_tag_color(raw_color):
+    color = str(raw_color or "").strip().lower()
+    if not color:
+        return "#0dcaf0"
+    if not re.fullmatch(r"#[0-9a-f]{6}", color):
+        raise ValueError("Taggfärg måste vara i formatet #RRGGBB")
+    return color
+
+
 class TestCase(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     owner_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
@@ -283,6 +307,7 @@ class TestCase(db.Model):
 class Tag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), unique=True, nullable=False)
+    color = db.Column(db.String(7), nullable=False, default="#0dcaf0")
     test_cases = db.relationship("TestCase", secondary="test_case_tag", back_populates="tags")
 
 
@@ -693,7 +718,7 @@ def serialize_test_case(test_case: TestCase):
         "name": test_case.name,
         "active": test_case.active,
         "interval_minutes": test_case.interval_minutes,
-        "tags": [{"id": tag.id, "name": tag.name} for tag in sorted(test_case.tags, key=lambda item: item.name.lower())],
+        "tags": [{"id": tag.id, "name": tag.name, "color": tag.color} for tag in sorted(test_case.tags, key=lambda item: item.name.lower())],
         "latest_run": {
             "status": latest_status,
             "duration_ms": latest_duration,
@@ -1192,9 +1217,14 @@ def admin_page():
             elif Tag.query.filter(db.func.lower(Tag.name) == name.lower()).first():
                 flash("Taggen finns redan")
             else:
-                db.session.add(Tag(name=name))
-                db.session.commit()
-                flash("Tagg skapad")
+                try:
+                    color = normalize_tag_color(request.form.get("color"))
+                except ValueError as exc:
+                    flash(str(exc))
+                else:
+                    db.session.add(Tag(name=name, color=color))
+                    db.session.commit()
+                    flash("Tagg skapad")
 
         if action == "delete_tag":
             tag_id = parse_positive_int(request.form.get("tag_id"), 0)
@@ -1700,7 +1730,7 @@ def api_test_results(test_case_id):
 @api_auth_required
 def api_tags():
     tags = Tag.query.order_by(Tag.name.asc()).all()
-    return jsonify([{"id": tag.id, "name": tag.name} for tag in tags])
+    return jsonify([{"id": tag.id, "name": tag.name, "color": tag.color} for tag in tags])
 
 
 @app.route("/api/tags", methods=["POST"])
@@ -1716,10 +1746,15 @@ def api_create_tag():
     if Tag.query.filter(db.func.lower(Tag.name) == name.lower()).first():
         return jsonify({"error": "Tag already exists"}), 409
 
-    tag = Tag(name=name)
+    try:
+        color = normalize_tag_color(payload.get("color"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    tag = Tag(name=name, color=color)
     db.session.add(tag)
     db.session.commit()
-    return jsonify({"id": tag.id, "name": tag.name}), 201
+    return jsonify({"id": tag.id, "name": tag.name, "color": tag.color}), 201
 
 
 @app.route("/api/tags/<int:tag_id>", methods=["DELETE"])
@@ -1785,6 +1820,7 @@ def handle_unexpected_error(error):
 with app.app_context():
     db.create_all()
     ensure_api_token_value_column()
+    ensure_tag_color_column()
     ensure_default_admin_user()
     get_data_retention_setting()
     if not scheduler.running:

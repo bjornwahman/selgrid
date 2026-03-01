@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>{{ test_case.name }}</h2>
+<div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+  <h2 class="mb-0">{{ test_case.name }}</h2>
+  {% for tag in test_case.tags|sort(attribute="name") %}
+    <span class="badge" style="background-color: {{ tag.color }}; color: #fff;">{{ tag.name }}</span>
+  {% endfor %}
+</div>
 <p><strong>Intervall:</strong> {{ test_case.interval_minutes }} minuter</p>
 <div class="d-flex gap-2 mb-4">
   <form method="post" action="{{ url_for('run_now', test_case_id=test_case.id) }}">
