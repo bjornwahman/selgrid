@@ -1158,6 +1158,205 @@ def test_admin_section_filter_shows_only_selected_panel():
     assert "Nästa schemalagda körning".encode("utf-8") not in users_page.data
 
 
+def test_perform_command_supports_all_documented_selenium_commands(monkeypatch):
+    action_calls = []
+    select_calls = []
+    wait_calls = []
+    sleep_calls = []
+
+    class FakeElement:
+        def __init__(self, text="Text", value="value", selected=False, displayed=True):
+            self.text = text
+            self._value = value
+            self._selected = selected
+            self._displayed = displayed
+            self.clicked = 0
+            self.cleared = 0
+            self.sent_keys = []
+            self.submitted = 0
+
+        def click(self):
+            self.clicked += 1
+
+        def clear(self):
+            self.cleared += 1
+
+        def send_keys(self, value):
+            self.sent_keys.append(value)
+
+        def submit(self):
+            self.submitted += 1
+
+        def is_selected(self):
+            return self._selected
+
+        def is_displayed(self):
+            return self._displayed
+
+        def get_attribute(self, key):
+            return self._value if key == "value" else ""
+
+    class FakeDriver:
+        def __init__(self):
+            self.title = "Practice Test Login"
+            self.last_opened = None
+            self.window_size = None
+            self.elements = {
+                "username": FakeElement(value="student"),
+                "password": FakeElement(value="Password123"),
+                "submit": FakeElement(),
+                "remember": FakeElement(selected=False),
+                "newsletter": FakeElement(selected=True),
+                "greeting": FakeElement(text="Hello student"),
+                "hidden": FakeElement(displayed=False),
+                "country": FakeElement(),
+            }
+
+        def get(self, url):
+            self.last_opened = url
+
+        def set_window_size(self, width, height):
+            self.window_size = (width, height)
+
+        def find_element(self, _by, selector):
+            return self.elements.get(selector, FakeElement())
+
+        def find_elements(self, _by, selector):
+            if selector == ".missing":
+                return []
+            if selector == ".hidden":
+                return [self.elements["hidden"]]
+            return [self.find_element(_by, selector)]
+
+    class FakeActionChains:
+        def __init__(self, _driver):
+            self.element = None
+
+        def double_click(self, element):
+            self.element = element
+            action_calls.append("doubleClick")
+            return self
+
+        def move_to_element(self, element):
+            self.element = element
+            action_calls.append("mouseOver")
+            return self
+
+        def perform(self):
+            action_calls.append("perform")
+            return None
+
+    class FakeSelect:
+        def __init__(self, _element):
+            pass
+
+        def select_by_visible_text(self, value):
+            select_calls.append(("label", value))
+
+        def select_by_value(self, value):
+            select_calls.append(("value", value))
+
+        def select_by_index(self, value):
+            select_calls.append(("index", value))
+
+    class FakeWait:
+        def __init__(self, _driver, timeout):
+            self.timeout = timeout
+
+        def until(self, condition):
+            wait_calls.append(("until", self.timeout, condition))
+            return True
+
+        def until_not(self, condition):
+            wait_calls.append(("until_not", self.timeout, condition))
+            return True
+
+    class FakeEC:
+        @staticmethod
+        def presence_of_element_located(locator):
+            return ("present", locator)
+
+        @staticmethod
+        def visibility_of_element_located(locator):
+            return ("visible", locator)
+
+        @staticmethod
+        def element_to_be_clickable(locator):
+            return ("clickable", locator)
+
+    monkeypatch.setattr(selgrid_app, "ActionChains", FakeActionChains)
+    monkeypatch.setattr(selgrid_app, "Select", FakeSelect)
+    monkeypatch.setattr(selgrid_app, "WebDriverWait", FakeWait)
+    monkeypatch.setattr(selgrid_app, "EC", FakeEC)
+    monkeypatch.setattr(selgrid_app.time, "sleep", lambda value: sleep_calls.append(value))
+
+    driver = FakeDriver()
+    variables = {}
+
+    for command, target, value in [
+        ("comment", "", "start"),
+        ("echo", "", "start"),
+        ("note", "", "start"),
+        ("open", "https://practicetestautomation.com/practice-test-login/", ""),
+        ("click", "id=submit", ""),
+        ("doubleClick", "id=submit", ""),
+        ("type", "id=username", "student"),
+        ("sendKeys", "id=password", "ENTER"),
+        ("select", "id=country", "label=Sweden"),
+        ("check", "id=remember", ""),
+        ("uncheck", "id=newsletter", ""),
+        ("mouseOver", "id=submit", ""),
+        ("submit", "id=submit", ""),
+        ("pause", "250", ""),
+        ("assertTitle", "Practice Test Login", ""),
+        ("assertText", "id=greeting", "Hello student"),
+        ("assertValue", "id=username", "student"),
+        ("assertElementPresent", "id=submit", ""),
+        ("assertElementNotPresent", "css=.missing", ""),
+        ("assertElementVisible", "id=submit", ""),
+        ("assertElementNotVisible", "css=.hidden", ""),
+        ("waitForElementPresent", "id=submit", "3"),
+        ("waitForElementVisible", "id=submit", "4"),
+        ("waitForElement", "id=submit", "5"),
+        ("waitForElementNotPresent", "css=.missing", "6"),
+        ("waitForElementNotVisible", "css=.hidden", "7"),
+        ("waitForElementClickable", "id=submit", "8"),
+        ("clear", "id=password", ""),
+        ("setWindowSize", "", "1366x768"),
+        ("storeText", "id=greeting", "savedText"),
+        ("storeValue", "id=username", "savedValue"),
+        ("storeTitle", "savedTitle", ""),
+    ]:
+        selgrid_app.perform_command(driver, command, target, value, variables_map=variables)
+
+    assert driver.last_opened == "https://practicetestautomation.com/practice-test-login/"
+    assert driver.elements["submit"].clicked == 1
+    assert driver.elements["remember"].clicked == 1
+    assert driver.elements["newsletter"].clicked == 1
+    assert driver.elements["username"].cleared == 1
+    assert driver.elements["username"].sent_keys == ["student"]
+    assert driver.elements["password"].sent_keys == [selgrid_app.Keys.ENTER]
+    assert driver.elements["password"].cleared == 1
+    assert driver.elements["submit"].submitted == 1
+    assert driver.window_size == (1366, 768)
+    assert sleep_calls == [0.25]
+    assert select_calls == [("label", "Sweden")]
+    assert action_calls == ["doubleClick", "perform", "mouseOver", "perform"]
+    assert wait_calls == [
+        ("until", 3, ("present", (selgrid_app.By.ID, "submit"))),
+        ("until", 4, ("visible", (selgrid_app.By.ID, "submit"))),
+        ("until", 5, ("visible", (selgrid_app.By.ID, "submit"))),
+        ("until_not", 6, ("present", (selgrid_app.By.CSS_SELECTOR, ".missing"))),
+        ("until_not", 7, ("present", (selgrid_app.By.CSS_SELECTOR, ".hidden"))),
+        ("until", 8, ("clickable", (selgrid_app.By.ID, "submit"))),
+    ]
+    assert variables == {
+        "savedText": "Hello student",
+        "savedValue": "student",
+        "savedTitle": "Practice Test Login",
+    }
+
+
 def test_admin_can_cancel_running_run():
     selgrid_app.app.config.update(TESTING=True)
     reset_db()
